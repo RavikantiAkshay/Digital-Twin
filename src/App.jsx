@@ -71,7 +71,11 @@ export default function App() {
   const handleApplyStress = async (busScales) => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/network/${selectedCaseId}/solve`, {
+      const endpoint = selectedCaseId.startsWith('custom') 
+        ? '/api/network/custom/stress' 
+        : `/api/network/${selectedCaseId}/solve`;
+      
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -92,7 +96,31 @@ export default function App() {
   };
 
   const handleCaseSelection = (caseId) => {
-    loadNetworkData(caseId);
+    if (caseId === 'custom_grid' && networkData?.summary?.case_id === 'custom_grid') {
+      setSelectedCaseId('custom_grid');
+      setMode('visualizer');
+    } else {
+      loadNetworkData(caseId);
+    }
+  };
+
+  const handleLaunchCustomGrid = (solvedData, customTitle) => {
+    const customCaseObj = {
+      id: 'custom_grid',
+      name: `✨ ${customTitle || 'Custom Grid Model'}`,
+      description: `Custom AC Power Flow Model (${solvedData.nodes.length} Buses, ${solvedData.edges.length} Branches)`
+    };
+
+    // Ensure custom case is in cases dropdown
+    setCases(prev => {
+      const filtered = prev.filter(c => c.id !== 'custom_grid');
+      return [customCaseObj, ...filtered];
+    });
+
+    setSelectedCaseId('custom_grid');
+    setNetworkData(solvedData);
+    setSelectedElement(null);
+    setMode('visualizer');
   };
 
   return (
@@ -118,8 +146,15 @@ export default function App() {
             onSelectCase={handleCaseSelection}
             summary={networkData?.summary}
             onHomeClick={() => setMode('selection')}
-            onRefreshClick={() => loadNetworkData(selectedCaseId)}
+            onRefreshClick={() => {
+              if (selectedCaseId.startsWith('custom')) {
+                handleApplyStress({});
+              } else {
+                loadNetworkData(selectedCaseId);
+              }
+            }}
             onOpenDataTable={() => setIsDataTableOpen(true)}
+            onOpenCustomModal={() => setIsCustomModalOpen(true)}
             onToggleStressPanel={() => setIsStressPanelOpen(!isStressPanelOpen)}
             isStressPanelOpen={isStressPanelOpen}
             isLoading={isLoading}
@@ -177,7 +212,7 @@ export default function App() {
       <CustomNetworkModal
         isOpen={isCustomModalOpen}
         onClose={() => setIsCustomModalOpen(false)}
-        onLaunchDefaultCase={handleCaseSelection}
+        onLaunchCustomGrid={handleLaunchCustomGrid}
       />
     </div>
   );

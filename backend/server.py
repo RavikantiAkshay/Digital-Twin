@@ -17,11 +17,23 @@ from fastapi.responses import FileResponse
 try:
     from backend.load_network import SUPPORTED_CASES
     from backend.power_flow import solve_and_extract
+    from backend.custom_grid_solver import solve_custom_network, ACTIVE_CUSTOM_CASE
 except ImportError:
     from load_network import SUPPORTED_CASES
     from power_flow import solve_and_extract
+    from custom_grid_solver import solve_custom_network, ACTIVE_CUSTOM_CASE
 
 class SolveRequest(BaseModel):
+    global_scale: Optional[float] = 1.0
+    bus_scales: Optional[Dict[str, float]] = None
+
+class CustomNetworkRequest(BaseModel):
+    name: Optional[str] = "Custom Grid"
+    case_id: Optional[str] = "custom_grid"
+    base_mva: Optional[float] = 100.0
+    buses: list
+    generators: Optional[list] = []
+    branches: list
     global_scale: Optional[float] = 1.0
     bus_scales: Optional[Dict[str, float]] = None
 
@@ -54,6 +66,52 @@ def get_supported_cases():
             "description": info["description"]
         })
     return {"cases": cases_list}
+
+@app.post("/api/network/custom/solve")
+def solve_custom_grid(req: CustomNetworkRequest):
+    """Solves AC Newton-Raphson power flow for a custom grid topology."""
+    try:
+        b_scales = {}
+        if req.bus_scales:
+            for k, v in req.bus_scales.items():
+                try:
+                    b_scales[int(k)] = float(v)
+                except ValueError:
+                    pass
+        
+        payload = req.dict()
+        data = solve_custom_network(
+            payload,
+            global_scale=req.global_scale if req.global_scale is not None else 1.0,
+            bus_scales=b_scales
+        )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Custom grid AC solve failed: {str(e)}")
+
+@app.post("/api/network/custom/stress")
+def stress_custom_grid(req: SolveRequest):
+    """Applies load scaling & contingency stress testing to the active custom grid."""
+    if not ACTIVE_CUSTOM_CASE or 'raw_data' not in ACTIVE_CUSTOM_CASE:
+        raise HTTPException(status_code=404, detail="No active custom grid found in session.")
+    
+    try:
+        b_scales = {}
+        if req.bus_scales:
+            for k, v in req.bus_scales.items():
+                try:
+                    b_scales[int(k)] = float(v)
+                except ValueError:
+                    pass
+        
+        data = solve_custom_network(
+            ACTIVE_CUSTOM_CASE['raw_data'],
+            global_scale=req.global_scale if req.global_scale is not None else 1.0,
+            bus_scales=b_scales
+        )
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to stress custom grid: {str(e)}")
 
 @app.get("/api/network/{case_id}")
 def get_network_data(case_id: str):

@@ -8,7 +8,8 @@ import {
   AlertTriangle, 
   XOctagon, 
   ChevronDown,
-  Sliders
+  Sliders,
+  PlusCircle
 } from 'lucide-react';
 
 export default function TopBar({ 
@@ -19,6 +20,7 @@ export default function TopBar({
   onHomeClick, 
   onRefreshClick, 
   onOpenDataTable,
+  onOpenCustomModal,
   onToggleStressPanel,
   isStressPanelOpen,
   isLoading 
@@ -89,6 +91,17 @@ export default function TopBar({
           </select>
           <ChevronDown size={13} className="absolute right-2 top-2 text-[#bbc9ca] pointer-events-none" />
         </div>
+
+        {onOpenCustomModal && (
+          <button
+            onClick={onOpenCustomModal}
+            className="p-1.5 px-2.5 rounded-lg bg-[#1f1f22] border border-[#2D333B] text-[#55d8e1] hover:border-[#55d8e1]/50 hover:bg-[#2a2a2d] transition-all flex items-center gap-1.5 text-xs font-semibold"
+            title="Open Custom Network Builder"
+          >
+            <PlusCircle size={14} />
+            <span className="hidden lg:inline">Custom Grid</span>
+          </button>
+        )}
       </div>
 
       {/* Middle: Clean Telemetry Summary */}

@@ -7,26 +7,37 @@ import {
   Cpu, 
   ArrowRightLeft, 
   Sliders,
-  Info
+  Info,
+  Power,
+  RotateCcw,
+  AlertTriangle,
+  ShieldCheck
 } from 'lucide-react';
 
-export default function InspectorPanel({ element, onClose, summary }) {
+export default function InspectorPanel({ 
+  element, 
+  onClose, 
+  summary,
+  onToggleLineTrip,
+  isLoading
+}) {
   if (!element) return null;
 
   const { type, data } = element;
+  const isLineTripped = type === 'line' && (data.is_tripped || data.status === 0 || data.thermal_status === 'tripped');
 
   return (
-    <aside className="w-80 md:w-96 bg-[#1f1f22]/95 border-l border-[#2D333B] h-full fixed top-16 right-0 z-30 p-5 flex flex-col justify-between overflow-y-auto shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-300">
+    <aside className="w-80 md:w-96 bg-[#19191c]/95 border-l border-[#2D333B] h-full fixed top-14 right-0 z-30 p-5 flex flex-col justify-between overflow-y-auto shadow-2xl backdrop-blur-xl animate-in slide-in-from-right duration-300 font-sans">
       <div>
         {/* Panel Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[#2D333B]">
           <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl ${type === 'bus' ? 'bg-[#00adb5]/10 text-[#55d8e1] border border-[#00adb5]/30' : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'}`}>
+            <div className={`p-2 rounded-xl ${type === 'bus' ? 'bg-[#00adb5]/10 text-[#55d8e1] border border-[#00adb5]/30' : isLineTripped ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 'bg-purple-500/10 text-purple-400 border border-purple-500/30'}`}>
               {type === 'bus' ? <Cpu size={20} /> : <ArrowRightLeft size={20} />}
             </div>
             <div>
               <h2 className="text-base font-bold text-[#e4e1e5] uppercase tracking-wide">
-                {type === 'bus' ? `Bus Telemetry (${data.label})` : `Transmission Line (${data.from_bus} → ${data.to_bus})`}
+                {type === 'bus' ? `Bus Telemetry (${data.label})` : `Line ${data.from_bus} → ${data.to_bus}`}
               </h2>
               <p className="text-[11px] text-[#bbc9ca]">AC Power Flow Real-Time Inspector</p>
             </div>
@@ -47,7 +58,7 @@ export default function InspectorPanel({ element, onClose, summary }) {
               <div className="p-3 rounded-xl bg-[#131316] border border-[#2D333B]">
                 <span className="text-[10px] text-[#bbc9ca] block mb-1 uppercase">BUS TYPE</span>
                 <span className="font-bold text-sm text-[#e4e1e5] uppercase">
-                  {data.type} {data.type === 'slack' ? '⚡ (Slack)' : (data.type === 'pv' ? '⚙️ (Gen)' : '🏠 (Load)')}
+                  {data.type} {data.type === 'slack' ? ' (Slack)' : (data.type === 'pv' ? ' (Gen)' : ' (Load)')}
                 </span>
               </div>
               <div className="p-3 rounded-xl bg-[#131316] border border-[#2D333B]">
@@ -140,7 +151,54 @@ export default function InspectorPanel({ element, onClose, summary }) {
 
         {/* LINE INSPECTION */}
         {type === 'line' && (
-          <div className="mt-5 space-y-5 text-xs">
+          <div className="mt-5 space-y-4 text-xs">
+            
+            {/* BREAKER CONTINGENCY SWITCHING CARD */}
+            <div className={`p-4 rounded-2xl border transition-all ${
+              isLineTripped
+                ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]'
+                : 'bg-[#131316] border-[#2D333B]'
+            }`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Power size={16} className={isLineTripped ? 'text-red-400' : 'text-emerald-400'} />
+                  <span className="font-bold text-[#e4e1e5]">Circuit Breaker State</span>
+                </div>
+
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                  isLineTripped 
+                    ? 'bg-red-500/20 text-red-300 border-red-500/40 animate-pulse'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                }`}>
+                  {isLineTripped ? 'TRIPPED (OPEN)' : 'IN-SERVICE (CLOSED)'}
+                </span>
+              </div>
+
+              {onToggleLineTrip && (
+                <button
+                  onClick={() => onToggleLineTrip(data.id, data.from_bus, data.to_bus)}
+                  disabled={isLoading}
+                  className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md ${
+                    isLineTripped
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-[#002b1b] shadow-emerald-500/20'
+                      : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/50 hover:border-red-500 shadow-red-500/10'
+                  }`}
+                >
+                  {isLineTripped ? (
+                    <>
+                      <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
+                      <span>Close Breaker & Restore Line</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={14} className={isLoading ? 'animate-spin' : ''} />
+                      <span>Trip Line (Open Breaker)</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
             {/* Status & Thermal Loading */}
             <div className="p-4 rounded-xl bg-[#131316] border border-[#2D333B]">
               <div className="flex justify-between items-center mb-2">
@@ -148,22 +206,26 @@ export default function InspectorPanel({ element, onClose, summary }) {
                   <Sliders size={14} className="text-purple-400" />
                   Thermal Loading %
                 </span>
-                <span className={`font-mono font-bold text-sm ${data.loading_pct > 100 ? 'text-red-400' : (data.loading_pct > 80 ? 'text-[#FFD369]' : 'text-[#55d8e1]')}`}>
-                  {data.loading_pct}%
+                <span className={`font-mono font-bold text-sm ${
+                  isLineTripped 
+                    ? 'text-red-400' 
+                    : (data.loading_pct > 100 ? 'text-red-400' : (data.loading_pct > 80 ? 'text-[#FFD369]' : 'text-[#55d8e1]'))
+                }`}>
+                  {isLineTripped ? '0.0% (Tripped)' : `${data.loading_pct}%`}
                 </span>
               </div>
 
               <div className="w-full bg-[#2a2a2d] h-2.5 rounded-full overflow-hidden">
                 <div 
                   className={`h-full transition-all duration-500 ${
-                    data.loading_pct > 100 ? 'bg-red-500' : (data.loading_pct > 80 ? 'bg-[#FFD369]' : 'bg-[#55d8e1]')
+                    isLineTripped ? 'bg-red-500/30' : (data.loading_pct > 100 ? 'bg-red-500' : (data.loading_pct > 80 ? 'bg-[#FFD369]' : 'bg-[#55d8e1]'))
                   }`}
-                  style={{ width: `${Math.min(100, data.loading_pct)}%` }}
+                  style={{ width: isLineTripped ? '0%' : `${Math.min(100, data.loading_pct)}%` }}
                 />
               </div>
               <div className="flex justify-between text-[10px] text-[#bbc9ca] mt-1.5 font-mono">
                 <span>0%</span>
-                <span>Rating: {data.rate_a > 0 ? `${data.rate_a} MVA` : 'Unconstrained'}</span>
+                <span>Rating: {data.rate_a > 0 ? `${data.rate_a} MVA` : 'Continuous'}</span>
                 <span>100%</span>
               </div>
             </div>
@@ -177,19 +239,19 @@ export default function InspectorPanel({ element, onClose, summary }) {
               <div className="grid grid-cols-2 gap-2 text-[11px]">
                 <div>
                   <span className="text-[10px] text-[#bbc9ca] block">ACTIVE FLOW (P_f)</span>
-                  <span className="text-sm font-bold text-[#55d8e1]">{data.pf} MW</span>
+                  <span className="text-sm font-bold text-[#55d8e1]">{isLineTripped ? '0.00' : data.pf} MW</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[#bbc9ca] block">REACTIVE FLOW (Q_f)</span>
-                  <span className="text-sm font-bold text-[#55d8e1]">{data.qf} MVAr</span>
+                  <span className="text-sm font-bold text-[#55d8e1]">{isLineTripped ? '0.00' : data.qf} MVAr</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[#bbc9ca] block font-sans">APPARENT (S_flow)</span>
-                  <span className="text-sm font-bold text-purple-400">{data.s_flow} MVA</span>
+                  <span className="text-sm font-bold text-purple-400">{isLineTripped ? '0.00' : data.s_flow} MVA</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-[#bbc9ca] block font-sans">LINE LOSS (P_loss)</span>
-                  <span className="text-sm font-bold text-[#FFD369]">{data.p_loss} MW</span>
+                  <span className="text-sm font-bold text-[#FFD369]">{isLineTripped ? '0.00' : data.p_loss} MW</span>
                 </div>
               </div>
             </div>

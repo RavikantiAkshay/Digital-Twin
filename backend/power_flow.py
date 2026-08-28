@@ -12,11 +12,12 @@ except ImportError:
 def solve_and_extract(
     case_id: str, 
     global_scale: float = 1.0, 
-    bus_scales: Optional[Dict[Any, float]] = None
+    bus_scales: Optional[Dict[Any, float]] = None,
+    tripped_branches: Optional[List[Any]] = None
 ) -> Dict[str, Any]:
     """
     Executes AC Newton-Raphson power flow on the given PyPOWER case_id with optional
-    global load scaling and targeted bus-specific load scaling.
+    global load scaling, targeted bus-specific load scaling, and transmission line outage contingencies.
     Formats complete telemetry, graph topology, and violation lists for frontend rendering.
     """
     mpc = load_case(case_id)
@@ -34,6 +35,43 @@ def solve_and_extract(
             if np.any(mask):
                 mpc['bus'][mask, 2] *= float(mult)
                 mpc['bus'][mask, 3] *= float(mult)
+
+    # 3. Apply Line Outages / Contingency Tripping
+    tripped_set = set()
+    if tripped_branches:
+        for item in tripped_branches:
+            if isinstance(item, (int, np.integer)):
+                tripped_set.add(f"idx_{item}")
+            elif isinstance(item, str):
+                tripped_set.add(item.strip())
+                parts = item.split('-')
+                if len(parts) >= 2:
+                    try:
+                        f, t = int(parts[0]), int(parts[1])
+                        tripped_set.add(f"{f}-{t}")
+                        tripped_set.add(f"{t}-{f}")
+                    except ValueError:
+                        pass
+            elif isinstance(item, dict):
+                if 'index' in item:
+                    tripped_set.add(f"idx_{item['index']}")
+                if 'from_bus' in item and 'to_bus' in item:
+                    f = int(item['from_bus'])
+                    t = int(item['to_bus'])
+                    tripped_set.add(f"{f}-{t}")
+                    tripped_set.add(f"{t}-{f}")
+
+        for i in range(len(mpc['branch'])):
+            f_b = int(mpc['branch'][i, 0])
+            t_b = int(mpc['branch'][i, 1])
+            edge_id = f"{f_b}-{t_b}-{i}"
+            if (
+                f"idx_{i}" in tripped_set or 
+                f"{f_b}-{t_b}" in tripped_set or 
+                f"{t_b}-{f_b}" in tripped_set or 
+                edge_id in tripped_set
+            ):
+                mpc['branch'][i, 10] = 0  # Trip branch out of service (BR_STATUS = 0)
 
     opts = ppoption(VERBOSE=0, OUT_ALL=0)
     
@@ -196,34 +234,53 @@ def solve_and_extract(
         p_loss = float(round(abs(pf + pt), 2))
         tot_losses_mw += p_loss
         
-        if rate_a > 0:
-            loading_pct = float(round((s_flow / rate_a) * 100.0, 1))
-        else:
+        is_tripped = (status == 0)
+        if is_tripped:
+            pf = 0.0
+            qf = 0.0
+            pt = 0.0
+            qt = 0.0
+            s_flow = 0.0
+            p_loss = 0.0
             loading_pct = 0.0
-            
-        if loading_pct > 120.0:
-            line_status = "overload"
-            line_overloads += 1
+            line_status = "tripped"
             violations_list.append({
-                'category': 'Thermal Overload',
-                'type': 'line_overload',
+                'category': 'Line Outage (N-1)',
+                'type': 'line_tripped',
                 'element': f"Line {f_bus} → {t_bus}",
-                'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
-                'limit': f"Rate {rate_a} MVA (120%)",
-                'severity': 'critical'
-            })
-        elif loading_pct > 100.0:
-            line_status = "warning"
-            violations_list.append({
-                'category': 'Thermal Emergency',
-                'type': 'line_emergency',
-                'element': f"Line {f_bus} → {t_bus}",
-                'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
-                'limit': f"Rate {rate_a} MVA (100%)",
+                'value': 'DISCONNECTED (Open Breaker)',
+                'limit': 'In-Service',
                 'severity': 'alert'
             })
         else:
-            line_status = "normal"
+            if rate_a > 0:
+                loading_pct = float(round((s_flow / rate_a) * 100.0, 1))
+            else:
+                loading_pct = 0.0
+                
+            if loading_pct > 120.0:
+                line_status = "overload"
+                line_overloads += 1
+                violations_list.append({
+                    'category': 'Thermal Overload',
+                    'type': 'line_overload',
+                    'element': f"Line {f_bus} → {t_bus}",
+                    'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
+                    'limit': f"Rate {rate_a} MVA (120%)",
+                    'severity': 'critical'
+                })
+            elif loading_pct > 100.0:
+                line_status = "warning"
+                violations_list.append({
+                    'category': 'Thermal Emergency',
+                    'type': 'line_emergency',
+                    'element': f"Line {f_bus} → {t_bus}",
+                    'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
+                    'limit': f"Rate {rate_a} MVA (100%)",
+                    'severity': 'alert'
+                })
+            else:
+                line_status = "normal"
             
         edges.append({
             'id': f"{f_bus}-{t_bus}-{i}",
@@ -236,6 +293,7 @@ def solve_and_extract(
             'rate_a': rate_a,
             'tap': tap,
             'status': status,
+            'is_tripped': is_tripped,
             'pf': pf,
             'qf': qf,
             'pt': pt,

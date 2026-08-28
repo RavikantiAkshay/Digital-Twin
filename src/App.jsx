@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ModeSelection from './components/ModeSelection';
 import CircuitVisualizer from './components/CircuitVisualizer';
 import TopBar from './components/TopBar';
@@ -25,6 +25,8 @@ export default function App() {
   const [selectedCaseId, setSelectedCaseId] = useState('case14');
   const [networkData, setNetworkData] = useState(null);
   const [baselineData, setBaselineData] = useState(null); // Preserves 1.0x baseline for comparison
+  const [activeBusScales, setActiveBusScales] = useState({});
+  const [trippedBranches, setTrippedBranches] = useState([]); // Array of tripped lines: ["1-2", "2-3"]
   const [selectedElement, setSelectedElement] = useState(null);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = useState(false);
@@ -51,6 +53,8 @@ export default function App() {
   // Fetch network data and solve AC power flow
   const loadNetworkData = async (caseId) => {
     setSelectedCaseId(caseId);
+    setTrippedBranches([]);
+    setActiveBusScales({});
     setIsLoading(true);
     setErrorMsg(null);
     try {
@@ -73,6 +77,8 @@ export default function App() {
 
   // Run load scaling & stress analysis AC power flow
   const handleApplyStress = async (busScales) => {
+    const updatedScales = busScales !== undefined ? busScales : activeBusScales;
+    setActiveBusScales(updatedScales || {});
     setIsLoading(true);
     try {
       const endpoint = selectedCaseId.startsWith('custom') 
@@ -84,7 +90,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           global_scale: 1.0,
-          bus_scales: busScales || {}
+          bus_scales: updatedScales || {},
+          tripped_branches: trippedBranches
         })
       });
       if (!res.ok) {
@@ -99,8 +106,51 @@ export default function App() {
     }
   };
 
+  // Interactive Line Outage / Circuit Breaker Switching
+  const handleToggleLineTrip = async (lineId, fromBus, toBus) => {
+    const f = parseInt(fromBus, 10);
+    const t = parseInt(toBus, 10);
+    const key = `${f}-${t}`;
+    const reverseKey = `${t}-${f}`;
+
+    const isCurrentlyTripped = trippedBranches.some(k => k === key || k === reverseKey || k === lineId);
+    const newTripped = isCurrentlyTripped
+      ? trippedBranches.filter(k => k !== key && k !== reverseKey && k !== lineId)
+      : [...trippedBranches, key];
+
+    setTrippedBranches(newTripped);
+    setIsLoading(true);
+
+    try {
+      const endpoint = selectedCaseId.startsWith('custom') 
+        ? '/api/network/custom/stress' 
+        : `/api/network/${selectedCaseId}/solve`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          global_scale: 1.0,
+          bus_scales: activeBusScales || {},
+          tripped_branches: newTripped
+        })
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+      const data = await res.json();
+      setNetworkData(data);
+    } catch (err) {
+      console.error(`Failed to solve contingency power flow for ${selectedCaseId}:`, err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Reset grid back to 1.0x baseline state
   const handleResetStress = () => {
+    setActiveBusScales({});
+    setTrippedBranches([]);
     handleApplyStress({});
   };
 
@@ -126,11 +176,34 @@ export default function App() {
     });
 
     setSelectedCaseId('custom_grid');
+    setTrippedBranches([]);
+    setActiveBusScales({});
     setNetworkData(solvedData);
     setBaselineData(solvedData); // Record base custom grid
     setSelectedElement(null);
     setMode('visualizer');
   };
+
+  // Keep selected element live and in sync with solver telemetry
+  const activeElement = useMemo(() => {
+    if (!selectedElement || !networkData) return null;
+    if (selectedElement.type === 'line') {
+      const f = parseInt(selectedElement.data.from_bus, 10);
+      const t = parseInt(selectedElement.data.to_bus, 10);
+      const updatedEdge = networkData.edges?.find(e => 
+        e.id === selectedElement.data.id ||
+        (e.from_bus === f && e.to_bus === t) ||
+        (e.from_bus === t && e.to_bus === f)
+      );
+      return updatedEdge ? { type: 'line', data: updatedEdge } : selectedElement;
+    }
+    if (selectedElement.type === 'bus') {
+      const bId = parseInt(selectedElement.data.id, 10);
+      const updatedNode = networkData.nodes?.find(n => n.id === bId);
+      return updatedNode ? { type: 'bus', data: updatedNode } : selectedElement;
+    }
+    return selectedElement;
+  }, [selectedElement, networkData]);
 
   // Compute whether the grid is currently operating away from baseline
   const isStressed = Boolean(
@@ -139,7 +212,8 @@ export default function App() {
     (
       Math.abs((networkData.summary?.total_load_mw || 0) - (baselineData.summary?.total_load_mw || 0)) > 0.01 ||
       networkData.summary?.global_load_scale !== 1.0 ||
-      networkData.nodes?.some(n => n.is_targeted)
+      networkData.nodes?.some(n => n.is_targeted) ||
+      trippedBranches.length > 0
     )
   );
 
@@ -168,7 +242,7 @@ export default function App() {
             onHomeClick={() => setMode('selection')}
             onRefreshClick={() => {
               if (selectedCaseId.startsWith('custom')) {
-                handleApplyStress({});
+                handleApplyStress(activeBusScales);
               } else {
                 loadNetworkData(selectedCaseId);
               }
@@ -179,7 +253,7 @@ export default function App() {
 
           {/* Main Visualizer Workspace */}
           <div className="flex-1 relative overflow-hidden">
-            {isLoading ? (
+            {!networkData && isLoading ? (
               <div className="h-full w-full flex flex-col items-center justify-center bg-[#131316] text-[#55d8e1] gap-4">
                 <Loader2 size={40} className="animate-spin" />
                 <div className="text-sm font-bold tracking-wide font-mono">
@@ -189,7 +263,7 @@ export default function App() {
             ) : networkData ? (
               <CircuitVisualizer
                 networkData={networkData}
-                selectedElement={selectedElement}
+                selectedElement={activeElement}
                 onSelectElement={setSelectedElement}
                 showFlowAnimation={showFlowAnimation}
                 setShowFlowAnimation={setShowFlowAnimation}
@@ -200,7 +274,7 @@ export default function App() {
                 onOpenDataTable={() => setIsDataTableOpen(true)}
                 onRefreshClick={() => {
                   if (selectedCaseId.startsWith('custom')) {
-                    handleApplyStress({});
+                    handleApplyStress(activeBusScales);
                   } else {
                     loadNetworkData(selectedCaseId);
                   }
@@ -211,9 +285,11 @@ export default function App() {
 
             {/* Slide-over Inspector Panel */}
             <InspectorPanel
-              element={selectedElement}
+              element={activeElement}
               onClose={() => setSelectedElement(null)}
               summary={networkData?.summary}
+              onToggleLineTrip={handleToggleLineTrip}
+              isLoading={isLoading}
             />
 
             {/* Slide-over Stress Test Panel */}

@@ -26,6 +26,7 @@ except ImportError:
 class SolveRequest(BaseModel):
     global_scale: Optional[float] = 1.0
     bus_scales: Optional[Dict[str, float]] = None
+    tripped_branches: Optional[list] = None
 
 class CustomNetworkRequest(BaseModel):
     name: Optional[str] = "Custom Grid"
@@ -36,6 +37,7 @@ class CustomNetworkRequest(BaseModel):
     branches: list
     global_scale: Optional[float] = 1.0
     bus_scales: Optional[Dict[str, float]] = None
+    tripped_branches: Optional[list] = None
 
 app = FastAPI(
     title="Power Grid Digital Twin API",
@@ -83,7 +85,8 @@ def solve_custom_grid(req: CustomNetworkRequest):
         data = solve_custom_network(
             payload,
             global_scale=req.global_scale if req.global_scale is not None else 1.0,
-            bus_scales=b_scales
+            bus_scales=b_scales,
+            tripped_branches=req.tripped_branches
         )
         return data
     except Exception as e:
@@ -107,7 +110,8 @@ def stress_custom_grid(req: SolveRequest):
         data = solve_custom_network(
             ACTIVE_CUSTOM_CASE['raw_data'],
             global_scale=req.global_scale if req.global_scale is not None else 1.0,
-            bus_scales=b_scales
+            bus_scales=b_scales,
+            tripped_branches=req.tripped_branches
         )
         return data
     except Exception as e:
@@ -140,7 +144,8 @@ def solve_network_with_scaling(case_id: str, req: SolveRequest):
         data = solve_and_extract(
             case_id, 
             global_scale=req.global_scale if req.global_scale is not None else 1.0, 
-            bus_scales=b_scales
+            bus_scales=b_scales,
+            tripped_branches=req.tripped_branches
         )
         return data
     except Exception as e:

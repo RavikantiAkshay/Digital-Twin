@@ -27,6 +27,7 @@ export default function CircuitVisualizer({
   isStressed,
   onOpenDataTable,
   onRefreshClick,
+  onToggleLineTrip,
   isLoading
 }) {
   const svgRef = useRef(null);
@@ -142,6 +143,7 @@ export default function CircuitVisualizer({
 
   // Line & Node colors
   const getLineColor = (edge) => {
+    if (edge.is_tripped || edge.status === 0 || edge.thermal_status === 'tripped') return '#ef4444';
     if (edge.thermal_status === 'overload') return '#ef4444'; // Red
     if (edge.thermal_status === 'warning') return '#FFD369';  // Gold
     if (edge.loading_pct > 60) return '#eab308';             // Yellow
@@ -209,44 +211,36 @@ export default function CircuitVisualizer({
           className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
             showFlowAnimation 
               ? 'bg-[#00adb5]/20 text-[#55d8e1] border border-[#00adb5]/40' 
-              : 'bg-[#1b1b1e] text-[#bbc9ca] border border-[#2D333B]'
+              : 'bg-[#131316] text-[#bbc9ca] hover:text-white border border-[#2D333B]'
           }`}
         >
           <Activity size={14} className={showFlowAnimation ? 'animate-pulse' : ''} />
-          <span>Flow Particles</span>
+          <span className="hidden sm:inline">Flow Motion</span>
         </button>
 
         <div className="h-5 w-[1px] bg-[#2D333B] mx-1" />
 
-        <div className="text-xs text-[#bbc9ca] px-2 font-mono">
-          Zoom: {Math.round(zoomLevel * 100)}%
-        </div>
-      </div>
-
-      {/* Floating Bus Search & Filter Bar */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
-        {/* Bus Search */}
-        <div className="bg-[#1f1f22]/90 border border-[#2D333B] px-3 py-1.5 flex items-center gap-2 rounded-xl backdrop-blur-md w-56 shadow-xl">
-          <Search size={16} className="text-[#bbc9ca]" />
+        {/* Bus Search Box */}
+        <div className="relative w-28 sm:w-36">
+          <Search size={14} className="absolute left-2.5 top-2 text-[#869394]" />
           <input
             type="text"
-            placeholder="Search Bus ID (e.g. 14)..."
+            placeholder="Find Bus ID..."
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            className="bg-transparent text-xs text-[#e4e1e5] placeholder-[#bbc9ca]/50 focus:outline-none w-full font-mono"
+            className="w-full bg-[#131316] border border-[#2D333B] text-xs text-[#e4e1e5] rounded-lg pl-8 pr-2 py-1.5 focus:outline-none focus:border-[#55d8e1] font-mono"
           />
         </div>
 
-        {/* Filter Dropdown */}
-        <div className="bg-[#1f1f22]/90 border border-[#2D333B] px-3 py-1.5 flex items-center gap-2 rounded-xl backdrop-blur-md shadow-xl">
-          <Sliders size={15} className="text-[#55d8e1]" />
+        {/* Filter Node Types */}
+        <div className="relative hidden md:block">
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="bg-transparent text-xs text-[#e4e1e5] focus:outline-none cursor-pointer font-sans"
+            className="appearance-none bg-[#131316] border border-[#2D333B] text-[#bbc9ca] text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-[#55d8e1] cursor-pointer"
           >
-            <option value="all" className="bg-[#131316] text-[#e4e1e5]">All Buses ({nodes.length})</option>
-            <option value="slack" className="bg-[#131316] text-[#e4e1e5]">Slack Buses</option>
+            <option value="all" className="bg-[#131316] text-[#e4e1e5]">All Buses</option>
+            <option value="slack" className="bg-[#131316] text-[#e4e1e5]">Slack Reference</option>
             <option value="pv" className="bg-[#131316] text-[#e4e1e5]">PV Generators</option>
             <option value="pq" className="bg-[#131316] text-[#e4e1e5]">PQ Loads</option>
             <option value="critical" className="bg-[#131316] text-[#e4e1e5]">Voltage Alerts</option>
@@ -281,6 +275,7 @@ export default function CircuitVisualizer({
               if (!sourceNode || !targetNode) return null;
 
               const isSelected = selectedElement?.type === 'line' && selectedElement?.data?.id === edge.id;
+              const isTripped = edge.is_tripped || edge.status === 0 || edge.thermal_status === 'tripped';
               const color = getLineColor(edge);
               const baseWidth = Math.max(1.5, Math.min(5, (edge.rate_a / summary.base_mva) * 2.5));
 
@@ -293,7 +288,7 @@ export default function CircuitVisualizer({
                     x2={targetNode.x}
                     y2={targetNode.y}
                     stroke="transparent"
-                    strokeWidth={14}
+                    strokeWidth={16}
                     onClick={() => onSelectElement({ type: 'line', data: edge })}
                   />
 
@@ -303,14 +298,15 @@ export default function CircuitVisualizer({
                     y1={sourceNode.y}
                     x2={targetNode.x}
                     y2={targetNode.y}
-                    stroke={isSelected ? '#55d8e1' : color}
-                    strokeWidth={isSelected ? baseWidth + 3 : baseWidth}
-                    strokeOpacity={isSelected ? 1.0 : (isLargeGrid ? 0.55 : 0.75)}
+                    stroke={isTripped ? '#ef4444' : (isSelected ? '#55d8e1' : color)}
+                    strokeWidth={isSelected ? baseWidth + 3 : (isTripped ? 3.5 : baseWidth)}
+                    strokeDasharray={isTripped ? '8 6' : 'none'}
+                    strokeOpacity={1.0}
                     className="transition-all duration-200"
                   />
 
-                  {/* Flow animation dash overlay */}
-                  {showFlowAnimation && edge.pf !== 0 && (
+                  {/* Flow animation dash overlay (only if line is in service) */}
+                  {showFlowAnimation && !isTripped && edge.pf !== 0 && (
                     <line
                       x1={edge.pf > 0 ? sourceNode.x : targetNode.x}
                       y1={edge.pf > 0 ? sourceNode.y : targetNode.y}
@@ -323,33 +319,61 @@ export default function CircuitVisualizer({
                     />
                   )}
 
-                  {/* Midpoint Label (Line Loading %) - only for smaller grids */}
+                  {/* Midpoint Label (Line Loading % or Breaker Open Status) */}
                   {!isLargeGrid && (
                     <g 
                       transform={`translate(${(sourceNode.x + targetNode.x) / 2}, ${(sourceNode.y + targetNode.y) / 2})`}
                       className="pointer-events-none"
                     >
-                      <rect
-                        x="-18"
-                        y="-8"
-                        width="36"
-                        height="16"
-                        rx="4"
-                        fill="#131316"
-                        fillOpacity="0.9"
-                        stroke={color}
-                        strokeWidth="1"
-                      />
-                      <text
-                        textAnchor="middle"
-                        dy="3.5"
-                        fontSize="8.5"
-                        fontWeight="700"
-                        fill={color}
-                        className="font-mono"
-                      >
-                        {edge.loading_pct}%
-                      </text>
+                      {isTripped ? (
+                        <>
+                          <rect
+                            x="-28"
+                            y="-10"
+                            width="56"
+                            height="20"
+                            rx="5"
+                            fill="#1c1113"
+                            fillOpacity="0.98"
+                            stroke="#ef4444"
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            textAnchor="middle"
+                            dy="4"
+                            fontSize="8.5"
+                            fontWeight="800"
+                            fill="#ef4444"
+                            className="font-mono tracking-wider"
+                          >
+                            TRIPPED ⚡
+                          </text>
+                        </>
+                      ) : (
+                        <>
+                          <rect
+                            x="-18"
+                            y="-8"
+                            width="36"
+                            height="16"
+                            rx="4"
+                            fill="#131316"
+                            fillOpacity="0.9"
+                            stroke={color}
+                            strokeWidth="1"
+                          />
+                          <text
+                            textAnchor="middle"
+                            dy="3.5"
+                            fontSize="8.5"
+                            fontWeight="700"
+                            fill={color}
+                            className="font-mono"
+                          >
+                            {edge.loading_pct}%
+                          </text>
+                        </>
+                      )}
                     </g>
                   )}
                 </g>
@@ -381,35 +405,50 @@ export default function CircuitVisualizer({
                   onMouseEnter={() => setHoveredBusId(node.id)}
                   onMouseLeave={() => setHoveredBusId(null)}
                 >
-                  {/* Search Highlight Pulsing Ring */}
-                  {(isHighlighted || isSelected || isHovered) && (
+                  {/* Selection / Warning Pulsing Ring */}
+                  {(isSelected || isHighlighted || node.v_status === 'critical') && (
                     <circle
-                      r={nodeRadius + 10}
+                      r={nodeRadius + 7}
                       fill="none"
-                      stroke="#55d8e1"
-                      strokeWidth="2.5"
-                      strokeDasharray="4,4"
-                      className="animate-spin-slow opacity-90"
+                      stroke={node.v_status === 'critical' ? '#ef4444' : '#55d8e1'}
+                      strokeWidth="2"
+                      strokeDasharray="4 3"
+                      className="animate-spin"
+                      style={{ animationDuration: '6s' }}
                     />
                   )}
 
-                  {/* Outer Status Ring */}
-                  <circle
-                    r={nodeRadius + 3}
-                    fill="none"
-                    stroke={borderColor}
-                    strokeWidth={isSelected ? 3 : 2}
-                    strokeOpacity={0.9}
-                    filter={isSlack ? "url(#glow-slack)" : (node.v_status === 'critical' ? "url(#glow-danger)" : undefined)}
-                  />
-
-                  {/* Inner Node Body */}
+                  {/* Base Circle Node */}
                   <circle
                     r={nodeRadius}
-                    fill={isSlack ? '#3f2e00' : (isGen ? '#003739' : '#1b1b1e')}
-                    stroke="#2D333B"
-                    strokeWidth="2"
+                    fill={node.v_status === 'critical' ? '#450a0a' : '#1f1f22'}
+                    stroke={isSelected ? '#55d8e1' : borderColor}
+                    strokeWidth={isSelected ? "3" : (isSlack ? "3" : "2")}
+                    filter={isSlack ? "url(#glow-slack)" : (node.v_status === 'critical' ? "url(#glow-danger)" : undefined)}
+                    className="transition-all duration-200"
                   />
+
+                  {/* Slack Outer Ring Indicator */}
+                  {isSlack && (
+                    <circle
+                      r={nodeRadius + 4}
+                      fill="none"
+                      stroke="#a855f7"
+                      strokeWidth="1.5"
+                      strokeDasharray="3 3"
+                    />
+                  )}
+
+                  {/* Generator Accent Ring */}
+                  {isGen && !isSlack && (
+                    <circle
+                      r={nodeRadius - 3.5}
+                      fill="none"
+                      stroke="#00adb5"
+                      strokeWidth="1.5"
+                      strokeOpacity="0.6"
+                    />
+                  )}
 
                   {/* Bus ID Text */}
                   <text
@@ -498,17 +537,17 @@ export default function CircuitVisualizer({
         {onOpenComparison && (
           <button
             onClick={onOpenComparison}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
               isStressed
                 ? 'bg-[#55d8e1]/15 text-[#55d8e1] border-[#55d8e1]/50 shadow-[0_0_15px_rgba(85,216,225,0.25)] hover:bg-[#55d8e1]/25'
                 : 'bg-[#1f1f22] border-[#2D333B] text-[#bbc9ca] hover:text-white hover:border-[#00adb5]/50'
             }`}
             title="Compare active power flow against 1.0x baseline"
           >
-            <GitCompare size={15} />
+            <GitCompare size={15} className="shrink-0" />
             <span>Compare</span>
             {isStressed && (
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#55d8e1]/20 text-[#55d8e1]">
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#55d8e1]/25 text-[#55d8e1] whitespace-nowrap leading-none">
                 Δ Stressed
               </span>
             )}

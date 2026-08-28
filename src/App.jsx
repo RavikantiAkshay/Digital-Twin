@@ -6,6 +6,7 @@ import InspectorPanel from './components/InspectorPanel';
 import StressTestPanel from './components/StressTestPanel';
 import DataTableModal from './components/DataTableModal';
 import CustomNetworkModal from './components/CustomNetworkModal';
+import ComparisonModal from './components/ComparisonModal';
 import { Loader2 } from 'lucide-react';
 
 const FALLBACK_CASES = [
@@ -23,9 +24,11 @@ export default function App() {
   const [cases, setCases] = useState(FALLBACK_CASES);
   const [selectedCaseId, setSelectedCaseId] = useState('case14');
   const [networkData, setNetworkData] = useState(null);
+  const [baselineData, setBaselineData] = useState(null); // Preserves 1.0x baseline for comparison
   const [selectedElement, setSelectedElement] = useState(null);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const [isDataTableOpen, setIsDataTableOpen] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [isStressPanelOpen, setIsStressPanelOpen] = useState(false);
   const [showFlowAnimation, setShowFlowAnimation] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +50,7 @@ export default function App() {
 
   // Fetch network data and solve AC power flow
   const loadNetworkData = async (caseId) => {
-    setSelectedCaseId(caseId); // Set immediately so loader text matches target caseId
+    setSelectedCaseId(caseId);
     setIsLoading(true);
     setErrorMsg(null);
     try {
@@ -57,6 +60,7 @@ export default function App() {
       }
       const data = await res.json();
       setNetworkData(data);
+      setBaselineData(data); // Record unscaled normal case as baseline
       setSelectedElement(null);
       setMode('visualizer');
     } catch (err) {
@@ -95,6 +99,11 @@ export default function App() {
     }
   };
 
+  // Reset grid back to 1.0x baseline state
+  const handleResetStress = () => {
+    handleApplyStress({});
+  };
+
   const handleCaseSelection = (caseId) => {
     if (caseId === 'custom_grid' && networkData?.summary?.case_id === 'custom_grid') {
       setSelectedCaseId('custom_grid');
@@ -111,7 +120,6 @@ export default function App() {
       description: `Custom AC Power Flow Model (${solvedData.nodes.length} Buses, ${solvedData.edges.length} Branches)`
     };
 
-    // Ensure custom case is in cases dropdown
     setCases(prev => {
       const filtered = prev.filter(c => c.id !== 'custom_grid');
       return [customCaseObj, ...filtered];
@@ -119,9 +127,21 @@ export default function App() {
 
     setSelectedCaseId('custom_grid');
     setNetworkData(solvedData);
+    setBaselineData(solvedData); // Record base custom grid
     setSelectedElement(null);
     setMode('visualizer');
   };
+
+  // Compute whether the grid is currently operating away from baseline
+  const isStressed = Boolean(
+    baselineData && 
+    networkData && 
+    (
+      Math.abs((networkData.summary?.total_load_mw || 0) - (baselineData.summary?.total_load_mw || 0)) > 0.01 ||
+      networkData.summary?.global_load_scale !== 1.0 ||
+      networkData.nodes?.some(n => n.is_targeted)
+    )
+  );
 
   return (
     <div className="min-h-screen bg-[#131316] text-[#e4e1e5] font-sans relative overflow-hidden">
@@ -153,10 +173,7 @@ export default function App() {
                 loadNetworkData(selectedCaseId);
               }
             }}
-            onOpenDataTable={() => setIsDataTableOpen(true)}
             onOpenCustomModal={() => setIsCustomModalOpen(true)}
-            onToggleStressPanel={() => setIsStressPanelOpen(!isStressPanelOpen)}
-            isStressPanelOpen={isStressPanelOpen}
             isLoading={isLoading}
           />
 
@@ -176,6 +193,19 @@ export default function App() {
                 onSelectElement={setSelectedElement}
                 showFlowAnimation={showFlowAnimation}
                 setShowFlowAnimation={setShowFlowAnimation}
+                onOpenStressPanel={() => setIsStressPanelOpen(prev => !prev)}
+                isStressPanelOpen={isStressPanelOpen}
+                onOpenComparison={() => setIsComparisonOpen(true)}
+                isStressed={isStressed}
+                onOpenDataTable={() => setIsDataTableOpen(true)}
+                onRefreshClick={() => {
+                  if (selectedCaseId.startsWith('custom')) {
+                    handleApplyStress({});
+                  } else {
+                    loadNetworkData(selectedCaseId);
+                  }
+                }}
+                isLoading={isLoading}
               />
             ) : null}
 
@@ -194,6 +224,7 @@ export default function App() {
               nodes={networkData?.nodes || []}
               violations={networkData?.violations || []}
               onApplyStress={handleApplyStress}
+              onOpenComparison={() => setIsComparisonOpen(true)}
               isLoading={isLoading}
             />
           </div>
@@ -207,6 +238,15 @@ export default function App() {
           onClose={() => setIsDataTableOpen(false)}
         />
       )}
+
+      {/* COMPARISON MODAL (BASE CASE VS STRESSED DELTA ANALYSIS) */}
+      <ComparisonModal
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        baselineData={baselineData}
+        networkData={networkData}
+        onResetStress={handleResetStress}
+      />
 
       {/* CUSTOM NETWORK BUILDER MODAL */}
       <CustomNetworkModal

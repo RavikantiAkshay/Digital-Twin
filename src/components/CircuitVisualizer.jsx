@@ -8,7 +8,11 @@ import {
   Search, 
   Activity, 
   Sliders, 
-  Info
+  Info,
+  GitCompare,
+  Table,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 
 export default function CircuitVisualizer({ 
@@ -16,7 +20,14 @@ export default function CircuitVisualizer({
   selectedElement, 
   onSelectElement, 
   showFlowAnimation, 
-  setShowFlowAnimation 
+  setShowFlowAnimation,
+  onOpenStressPanel,
+  isStressPanelOpen,
+  onOpenComparison,
+  isStressed,
+  onOpenDataTable,
+  onRefreshClick,
+  isLoading
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -462,8 +473,85 @@ export default function CircuitVisualizer({
         </g>
       </svg>
 
+      {/* Floating Canvas Action Dock (Bottom-Center) */}
+      <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-[#19191c]/95 border border-[#2D333B] p-2 rounded-2xl backdrop-blur-xl shadow-2xl">
+        {/* Stress Test */}
+        {onOpenStressPanel && (
+          <button
+            onClick={onOpenStressPanel}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+              isStressPanelOpen
+                ? 'bg-[#FFD369] text-[#1f1f22] border-[#FFD369] shadow-[0_0_15px_rgba(255,211,105,0.35)]'
+                : 'bg-[#1f1f22] border-[#2D333B] text-[#FFD369] hover:border-[#FFD369]/60 hover:bg-[#2a2a2d]'
+            }`}
+            title="Open Load Scaling & Stress Testing Panel"
+          >
+            <Sliders size={15} />
+            <span>Stress Test</span>
+            {isStressed && (
+              <span className="w-2 h-2 rounded-full bg-[#FFD369] animate-pulse" />
+            )}
+          </button>
+        )}
+
+        {/* Compare vs Baseline */}
+        {onOpenComparison && (
+          <button
+            onClick={onOpenComparison}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+              isStressed
+                ? 'bg-[#55d8e1]/15 text-[#55d8e1] border-[#55d8e1]/50 shadow-[0_0_15px_rgba(85,216,225,0.25)] hover:bg-[#55d8e1]/25'
+                : 'bg-[#1f1f22] border-[#2D333B] text-[#bbc9ca] hover:text-white hover:border-[#00adb5]/50'
+            }`}
+            title="Compare active power flow against 1.0x baseline"
+          >
+            <GitCompare size={15} />
+            <span>Compare</span>
+            {isStressed && (
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#55d8e1]/20 text-[#55d8e1]">
+                Δ Stressed
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Data Matrix Table */}
+        {onOpenDataTable && (
+          <button
+            onClick={onOpenDataTable}
+            className="px-3.5 py-2 rounded-xl bg-[#1f1f22] border border-[#2D333B] text-[#bbc9ca] hover:text-[#55d8e1] hover:border-[#00adb5]/50 hover:bg-[#2a2a2d] text-xs font-semibold transition-all flex items-center gap-2"
+            title="Open Full Matrix Data Table"
+          >
+            <Table size={15} />
+            <span>Matrix Data</span>
+          </button>
+        )}
+
+        <div className="h-5 w-[1px] bg-[#2D333B] mx-1 hidden sm:block" />
+
+        {/* Live Telemetry Summary Chip */}
+        {summary && (
+          <div className="hidden md:flex items-center gap-3 px-3 py-1 text-xs font-mono text-[#bbc9ca]">
+            <div>
+              <span className="text-[10px] text-[#869394] uppercase mr-1">Gen:</span>
+              <span className="font-bold text-[#55d8e1]">{summary.total_gen_mw} MW</span>
+            </div>
+            <div className="h-3 w-[1px] bg-[#2D333B]" />
+            <div>
+              <span className="text-[10px] text-[#869394] uppercase mr-1">Load:</span>
+              <span className="font-bold text-emerald-400">{summary.total_load_mw} MW</span>
+            </div>
+            <div className="h-3 w-[1px] bg-[#2D333B]" />
+            <div>
+              <span className="text-[10px] text-[#869394] uppercase mr-1">Loss:</span>
+              <span className="font-bold text-[#FFD369]">{summary.total_losses_mw} MW</span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Legend Card */}
-      <div className="absolute bottom-4 left-4 z-20 bg-[#1f1f22]/90 border border-[#2D333B] p-3.5 rounded-xl backdrop-blur-md text-xs shadow-xl">
+      <div className="absolute bottom-4 left-4 z-20 bg-[#1f1f22]/90 border border-[#2D333B] p-3.5 rounded-xl backdrop-blur-md text-xs shadow-xl hidden sm:block">
         <div className="font-semibold text-[#e4e1e5] mb-2 flex items-center gap-1.5">
           <Info size={14} className="text-[#55d8e1]" />
           <span>Grid Topology Legend</span>

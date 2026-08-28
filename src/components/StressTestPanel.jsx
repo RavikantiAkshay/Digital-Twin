@@ -15,7 +15,8 @@ import {
   Square,
   Search,
   CheckCircle2,
-  Filter
+  Filter,
+  GitCompare
 } from 'lucide-react';
 
 export default function StressTestPanel({ 
@@ -24,7 +25,8 @@ export default function StressTestPanel({
   summary, 
   nodes = [], 
   violations = [], 
-  onApplyStress, 
+  onApplyStress,
+  onOpenComparison,
   isLoading 
 }) {
   // Array of load rules: [{ id: 'rule_1', multiplier: 3.5, targetBuses: [9, 10, 14] }]
@@ -374,24 +376,36 @@ export default function StressTestPanel({
         </div>
 
         {/* SECTION 3: RUN POWER FLOW ACTION */}
-        <div className="flex gap-3 pt-1">
-          <button
-            onClick={handleRunPowerFlow}
-            disabled={isLoading}
-            className="flex-1 py-3.5 px-5 rounded-2xl bg-[#55d8e1] text-[#003739] hover:bg-[#55d8e1]/90 disabled:opacity-50 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(85,216,225,0.35)]"
-          >
-            <Zap size={18} className={isLoading ? 'animate-spin' : ''} />
-            <span>Run Power Flow ⚡</span>
-          </button>
+        <div className="flex flex-col gap-2.5 pt-1">
+          <div className="flex gap-3">
+            <button
+              onClick={handleRunPowerFlow}
+              disabled={isLoading}
+              className="flex-1 py-3 px-5 rounded-xl bg-[#55d8e1] text-[#003739] hover:bg-[#55d8e1]/90 disabled:opacity-50 transition-all font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(85,216,225,0.3)]"
+            >
+              <Zap size={16} className={isLoading ? 'animate-spin' : ''} />
+              <span>Execute Stress Power Flow</span>
+            </button>
 
-          <button
-            onClick={handleResetAll}
-            disabled={isLoading}
-            className="p-3.5 rounded-2xl bg-[#1f1f22] text-[#bbc9ca] hover:text-[#e4e1e5] border border-[#2D333B] hover:border-[#55d8e1]/50 transition-all"
-            title="Reset All Load Rules to Base IEEE Model"
-          >
-            <RotateCcw size={18} />
-          </button>
+            <button
+              onClick={handleResetAll}
+              disabled={isLoading}
+              className="p-3 rounded-xl bg-[#1f1f22] text-[#bbc9ca] hover:text-[#e4e1e5] border border-[#2D333B] hover:border-[#55d8e1]/50 transition-all"
+              title="Reset All Load Rules to Base Model"
+            >
+              <RotateCcw size={16} />
+            </button>
+          </div>
+
+          {onOpenComparison && (
+            <button
+              onClick={onOpenComparison}
+              className="w-full py-2.5 px-4 rounded-xl bg-[#1f1f22] text-[#55d8e1] border border-[#55d8e1]/30 hover:bg-[#55d8e1]/10 hover:border-[#55d8e1]/60 transition-all text-xs font-semibold flex items-center justify-center gap-2 shadow-sm"
+            >
+              <GitCompare size={14} />
+              <span>Compare with Normal Baseline</span>
+            </button>
+          )}
         </div>
 
         {/* SECTION 4: SECURITY CLASSIFICATION & TELEMETRY */}

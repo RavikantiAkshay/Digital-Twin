@@ -1,0 +1,56 @@
+{
+  "case_id": "case30",
+  "n_bus": 30,
+  "n_branch": 41,
+  "n_gen": 6,
+  "generators": [
+    {
+      "gen_idx": 0,
+      "gen_id": "G1",
+      "bus_id": 1,
+      "pmin": 0.0,
+      "pmax": 80.0,
+      "pg_base": 23.54
+    },
+    {
+      "gen_idx": 1,
+      "gen_id": "G2",
+      "bus_id": 2,
+      "pmin": 0.0,
+      "pmax": 80.0,
+      "pg_base": 60.97
+    },
+    {
+      "gen_idx": 2,
+      "gen_id": "G3",
+      "bus_id": 22,
+      "pmin": 0.0,
+      "pmax": 50.0,
+      "pg_base": 21.59
+    },
+    {
+      "gen_idx": 3,
+      "gen_id": "G4",
+      "bus_id": 27,
+      "pmin": 0.0,
+      "pmax": 55.0,
+      "pg_base": 26.91
+    },
+    {
+      "gen_idx": 4,
+      "gen_id": "G5",
+      "bus_id": 23,
+      "pmin": 0.0,
+      "pmax": 30.0,
+      "pg_base": 19.2
+    },
+    {
+      "gen_idx": 5,
+      "gen_id": "G6",
+      "bus_id": 13,
+      "pmin": 0.0,
+      "pmax": 40.0,
+      "pg_base": 37.0
+    }
+  ]
+}

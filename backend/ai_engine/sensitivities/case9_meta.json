@@ -1,0 +1,32 @@
+{
+  "case_id": "case9",
+  "n_bus": 9,
+  "n_branch": 9,
+  "n_gen": 3,
+  "generators": [
+    {
+      "gen_idx": 0,
+      "gen_id": "G1",
+      "bus_id": 1,
+      "pmin": 10.0,
+      "pmax": 250.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 1,
+      "gen_id": "G2",
+      "bus_id": 2,
+      "pmin": 10.0,
+      "pmax": 300.0,
+      "pg_base": 163.0
+    },
+    {
+      "gen_idx": 2,
+      "gen_id": "G3",
+      "bus_id": 3,
+      "pmin": 10.0,
+      "pmax": 270.0,
+      "pg_base": 85.0
+    }
+  ]
+}

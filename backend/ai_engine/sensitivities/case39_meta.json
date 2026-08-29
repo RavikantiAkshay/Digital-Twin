@@ -1,0 +1,88 @@
+{
+  "case_id": "case39",
+  "n_bus": 39,
+  "n_branch": 46,
+  "n_gen": 10,
+  "generators": [
+    {
+      "gen_idx": 0,
+      "gen_id": "G1",
+      "bus_id": 30,
+      "pmin": 0.0,
+      "pmax": 1040.0,
+      "pg_base": 250.0
+    },
+    {
+      "gen_idx": 1,
+      "gen_id": "G2",
+      "bus_id": 31,
+      "pmin": 0.0,
+      "pmax": 646.0,
+      "pg_base": 677.871
+    },
+    {
+      "gen_idx": 2,
+      "gen_id": "G3",
+      "bus_id": 32,
+      "pmin": 0.0,
+      "pmax": 725.0,
+      "pg_base": 650.0
+    },
+    {
+      "gen_idx": 3,
+      "gen_id": "G4",
+      "bus_id": 33,
+      "pmin": 0.0,
+      "pmax": 652.0,
+      "pg_base": 632.0
+    },
+    {
+      "gen_idx": 4,
+      "gen_id": "G5",
+      "bus_id": 34,
+      "pmin": 0.0,
+      "pmax": 508.0,
+      "pg_base": 508.0
+    },
+    {
+      "gen_idx": 5,
+      "gen_id": "G6",
+      "bus_id": 35,
+      "pmin": 0.0,
+      "pmax": 687.0,
+      "pg_base": 650.0
+    },
+    {
+      "gen_idx": 6,
+      "gen_id": "G7",
+      "bus_id": 36,
+      "pmin": 0.0,
+      "pmax": 580.0,
+      "pg_base": 560.0
+    },
+    {
+      "gen_idx": 7,
+      "gen_id": "G8",
+      "bus_id": 37,
+      "pmin": 0.0,
+      "pmax": 564.0,
+      "pg_base": 540.0
+    },
+    {
+      "gen_idx": 8,
+      "gen_id": "G9",
+      "bus_id": 38,
+      "pmin": 0.0,
+      "pmax": 865.0,
+      "pg_base": 830.0
+    },
+    {
+      "gen_idx": 9,
+      "gen_id": "G10",
+      "bus_id": 39,
+      "pmin": 0.0,
+      "pmax": 1100.0,
+      "pg_base": 1000.0
+    }
+  ]
+}

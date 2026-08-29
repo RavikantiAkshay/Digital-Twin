@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ModeSelection from './components/ModeSelection';
 import CircuitVisualizer from './components/CircuitVisualizer';
 import TopBar from './components/TopBar';
@@ -7,21 +7,13 @@ import StressTestPanel from './components/StressTestPanel';
 import DataTableModal from './components/DataTableModal';
 import CustomNetworkModal from './components/CustomNetworkModal';
 import ComparisonModal from './components/ComparisonModal';
+import AIAutoHealModal from './components/AIAutoHealModal';
 import { Loader2 } from 'lucide-react';
-
-const FALLBACK_CASES = [
-  { id: 'case9', name: 'IEEE 9-Bus System', description: '3 Generators, 9 Buses, 9 Transmission Lines' },
-  { id: 'case14', name: 'IEEE 14-Bus System', description: '5 Generators, 14 Buses, 20 Transmission Lines' },
-  { id: 'case30', name: 'IEEE 30-Bus System', description: '6 Generators, 30 Buses, 41 Transmission Lines' },
-  { id: 'case39', name: 'IEEE 39-Bus System', description: '10 Generators, 39 Buses, 46 Lines (New England)' },
-  { id: 'case57', name: 'IEEE 57-Bus System', description: '7 Generators, 57 Buses, 80 Transmission Lines' },
-  { id: 'case118', name: 'IEEE 118-Bus System', description: '54 Generators, 118 Buses, 186 Lines (Large Grid)' },
-  { id: 'case300', name: 'IEEE 300-Bus System', description: '69 Generators, 300 Buses, 411 Transmission Lines' },
-];
+import { getBuiltinBaseCase, BUILTIN_CASES_LIST } from './data/cached_cases';
 
 export default function App() {
   const [mode, setMode] = useState('selection'); // 'selection' | 'visualizer'
-  const [cases, setCases] = useState(FALLBACK_CASES);
+  const [cases, setCases] = useState(BUILTIN_CASES_LIST);
   const [selectedCaseId, setSelectedCaseId] = useState('case14');
   const [networkData, setNetworkData] = useState(null);
   const [baselineData, setBaselineData] = useState(null); // Preserves 1.0x baseline for comparison
@@ -32,11 +24,17 @@ export default function App() {
   const [isDataTableOpen, setIsDataTableOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [isStressPanelOpen, setIsStressPanelOpen] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [aiHealResult, setAiHealResult] = useState(null);
+  const [isAISolving, setIsAISolving] = useState(false);
   const [showFlowAnimation, setShowFlowAnimation] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
 
-  // Fetch supported cases from Python FastAPI Backend
+  // In-memory instant client-side cache for baseline cases (0ms network delay)
+  const baseCasesCacheRef = useRef(new Map());
+
+  // Fetch supported cases from Python FastAPI Backend (for any dynamic/custom cases)
   useEffect(() => {
     fetch('/api/cases')
       .then(res => res.json())
@@ -45,28 +43,54 @@ export default function App() {
           setCases(data.cases);
         }
       })
-      .catch(err => {
-        console.warn('Backend API /api/cases unreachable, using built-in IEEE cases fallback:', err);
+      .catch(() => {
+        // Safe to ignore, built-in IEEE cases are already loaded in state
       });
   }, []);
 
-  // Fetch network data and solve AC power flow
+  // Fetch network data or serve instantaneously from local client-side files
   const loadNetworkData = async (caseId) => {
     setSelectedCaseId(caseId);
     setTrippedBranches([]);
     setActiveBusScales({});
-    setIsLoading(true);
     setErrorMsg(null);
+    setSelectedElement(null);
+    setMode('visualizer');
+
+    // 1. Instant In-Memory Cache Hit Check (0ms latency)
+    if (baseCasesCacheRef.current.has(caseId)) {
+      const cached = baseCasesCacheRef.current.get(caseId);
+      setNetworkData(cached);
+      setBaselineData(cached);
+      setIsLoading(false);
+      return;
+    }
+
+    // 2. Instant Client-Side Static Asset Load (0 backend network calls)
+    try {
+      const builtin = await getBuiltinBaseCase(caseId);
+      if (builtin) {
+        baseCasesCacheRef.current.set(caseId, builtin);
+        setNetworkData(builtin);
+        setBaselineData(builtin);
+        setIsLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('Built-in base case load fallback to backend:', e);
+    }
+
+    // 3. Fallback to backend API only for dynamic/custom grids
+    setIsLoading(true);
     try {
       const res = await fetch(`/api/network/${caseId}`);
       if (!res.ok) {
         throw new Error(`Server returned status ${res.status}`);
       }
       const data = await res.json();
+      baseCasesCacheRef.current.set(caseId, data);
       setNetworkData(data);
-      setBaselineData(data); // Record unscaled normal case as baseline
-      setSelectedElement(null);
-      setMode('visualizer');
+      setBaselineData(data);
     } catch (err) {
       console.error(`Failed to load case ${caseId}:`, err);
       setErrorMsg(`Could not connect to PyPOWER solver API. Make sure python server is running.`);
@@ -145,6 +169,41 @@ export default function App() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Trigger Physics-Guided AI Grid Healing
+  const handleTriggerAIHeal = async () => {
+    setIsAISolving(true);
+    setErrorMsg(null);
+    try {
+      const res = await fetch(`/api/network/${selectedCaseId}/ai-heal`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          global_scale: 1.0,
+          bus_scales: activeBusScales || {},
+          tripped_branches: trippedBranches
+        })
+      });
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+      const data = await res.json();
+      setAiHealResult(data);
+      setIsAIModalOpen(true);
+    } catch (err) {
+      console.error(`AI Remediation failed:`, err);
+      setErrorMsg('AI Remediation call failed. Make sure python backend is running.');
+    } finally {
+      setIsAISolving(false);
+    }
+  };
+
+  const handleApplyAIDispatch = (solvedNetwork) => {
+    if (solvedNetwork) {
+      setNetworkData(solvedNetwork);
+    }
+    setIsAIModalOpen(false);
   };
 
   // Reset grid back to 1.0x baseline state
@@ -272,6 +331,8 @@ export default function App() {
                 onOpenComparison={() => setIsComparisonOpen(true)}
                 isStressed={isStressed}
                 onOpenDataTable={() => setIsDataTableOpen(true)}
+                onTriggerAIHeal={handleTriggerAIHeal}
+                isAISolving={isAISolving}
                 onRefreshClick={() => {
                   if (selectedCaseId.startsWith('custom')) {
                     handleApplyStress(activeBusScales);
@@ -322,6 +383,15 @@ export default function App() {
         baselineData={baselineData}
         networkData={networkData}
         onResetStress={handleResetStress}
+      />
+
+      {/* AI AUTONOMOUS REMEDIATION MODAL */}
+      <AIAutoHealModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        aiResult={aiHealResult}
+        onApplyHeal={handleApplyAIDispatch}
+        isLoading={isAISolving}
       />
 
       {/* CUSTOM NETWORK BUILDER MODAL */}

@@ -13,7 +13,8 @@ import {
   Table,
   Zap,
   RefreshCw,
-  Loader2
+  Loader2,
+  Bot
 } from 'lucide-react';
 
 export default function CircuitVisualizer({ 
@@ -23,13 +24,13 @@ export default function CircuitVisualizer({
   showFlowAnimation, 
   setShowFlowAnimation,
   onOpenStressPanel,
-  isStressPanelOpen,
   onOpenComparison,
-  isStressed,
   onOpenDataTable,
-  onRefreshClick,
-  onToggleLineTrip,
-  isLoading
+  onTriggerAIHeal,
+  isAISolving,
+  isStressed = false,
+  isStressPanelOpen = false,
+  isLoading = false
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
@@ -559,6 +560,23 @@ export default function CircuitVisualizer({
                 Δ Stressed
               </span>
             )}
+          </button>
+        )}
+
+        {/* AI Auto-Heal Remediation */}
+        {onTriggerAIHeal && (
+          <button
+            onClick={onTriggerAIHeal}
+            disabled={isAISolving}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap shrink-0 ${
+              summary?.grid_health !== 'SAFE' || (edges && edges.some(e => e.is_tripped))
+                ? 'bg-[#00adb5] text-[#131316] border-[#55d8e1] shadow-[0_0_20px_rgba(0,173,181,0.5)] hover:bg-[#55d8e1] animate-pulse'
+                : 'bg-[#1f1f22] border-[#2D333B] text-[#55d8e1] hover:border-[#00adb5]/50 hover:bg-[#2a2a2d]'
+            }`}
+            title="Execute Physics-Guided RL Operator to Resolve Violations"
+          >
+            {isAISolving ? <Loader2 size={15} className="animate-spin shrink-0" /> : <Bot size={15} className="shrink-0" />}
+            <span>AI Auto-Heal</span>
           </button>
         )}
 

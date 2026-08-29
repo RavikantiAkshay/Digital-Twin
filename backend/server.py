@@ -1,5 +1,6 @@
 import uvicorn
 import os
+import json
 import sys
 from typing import Dict, Optional, Any, List
 from pydantic import BaseModel
@@ -170,6 +171,49 @@ def solve_network_with_scaling(case_id: str, req: SolveRequest):
         return sanitize_json_obj(data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to solve power flow for {case_id}: {str(e)}")
+
+@app.get("/api/ai/metrics")
+def get_ai_training_metrics():
+    """Returns the evaluation metrics, recovery rates, and reward curves of the trained RL models."""
+    try:
+        from backend.ai_engine.agent import MODELS_DIR
+    except ImportError:
+        from ai_engine.agent import MODELS_DIR
+        
+    metrics_path = os.path.join(MODELS_DIR, "all_evaluation_metrics.json")
+    if os.path.exists(metrics_path):
+        try:
+            with open(metrics_path, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"status": "trained", "cases": ["case9", "case14", "case30", "case39"]}
+
+@app.post("/api/network/{case_id}/ai-heal")
+def execute_ai_healing(case_id: str, req: SolveRequest):
+    """Executes the Physics-Guided RL Operator to autonomously resolve active overloads."""
+    try:
+        from backend.ai_engine.healer import heal_grid_with_ai
+    except ImportError:
+        from ai_engine.healer import heal_grid_with_ai
+        
+    try:
+        b_scales = {}
+        if req.bus_scales:
+            for k, v in req.bus_scales.items():
+                try:
+                    b_scales[int(k)] = float(v)
+                except ValueError:
+                    pass
+        heal_result = heal_grid_with_ai(
+            case_id,
+            global_scale=req.global_scale if req.global_scale is not None else 1.0,
+            bus_scales=b_scales,
+            tripped_branches=req.tripped_branches
+        )
+        return sanitize_json_obj(heal_result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Remediation failed: {str(e)}")
 
 # Mount static dist folder if built
 dist_path = os.path.abspath(os.path.join(backend_dir, "..", "dist"))

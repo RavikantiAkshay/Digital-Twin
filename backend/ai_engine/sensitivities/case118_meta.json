@@ -1,0 +1,440 @@
+{
+  "case_id": "case118",
+  "n_bus": 118,
+  "n_branch": 186,
+  "n_gen": 54,
+  "generators": [
+    {
+      "gen_idx": 0,
+      "gen_id": "G1",
+      "bus_id": 1,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 1,
+      "gen_id": "G2",
+      "bus_id": 4,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 2,
+      "gen_id": "G3",
+      "bus_id": 6,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 3,
+      "gen_id": "G4",
+      "bus_id": 8,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 4,
+      "gen_id": "G5",
+      "bus_id": 10,
+      "pmin": 0.0,
+      "pmax": 550.0,
+      "pg_base": 450.0
+    },
+    {
+      "gen_idx": 5,
+      "gen_id": "G6",
+      "bus_id": 12,
+      "pmin": 0.0,
+      "pmax": 185.0,
+      "pg_base": 85.0
+    },
+    {
+      "gen_idx": 6,
+      "gen_id": "G7",
+      "bus_id": 15,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 7,
+      "gen_id": "G8",
+      "bus_id": 18,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 8,
+      "gen_id": "G9",
+      "bus_id": 19,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 9,
+      "gen_id": "G10",
+      "bus_id": 24,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 10,
+      "gen_id": "G11",
+      "bus_id": 25,
+      "pmin": 0.0,
+      "pmax": 320.0,
+      "pg_base": 220.0
+    },
+    {
+      "gen_idx": 11,
+      "gen_id": "G12",
+      "bus_id": 26,
+      "pmin": 0.0,
+      "pmax": 414.0,
+      "pg_base": 314.0
+    },
+    {
+      "gen_idx": 12,
+      "gen_id": "G13",
+      "bus_id": 27,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 13,
+      "gen_id": "G14",
+      "bus_id": 31,
+      "pmin": 0.0,
+      "pmax": 107.0,
+      "pg_base": 7.0
+    },
+    {
+      "gen_idx": 14,
+      "gen_id": "G15",
+      "bus_id": 32,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 15,
+      "gen_id": "G16",
+      "bus_id": 34,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 16,
+      "gen_id": "G17",
+      "bus_id": 36,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 17,
+      "gen_id": "G18",
+      "bus_id": 40,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 18,
+      "gen_id": "G19",
+      "bus_id": 42,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 19,
+      "gen_id": "G20",
+      "bus_id": 46,
+      "pmin": 0.0,
+      "pmax": 119.0,
+      "pg_base": 19.0
+    },
+    {
+      "gen_idx": 20,
+      "gen_id": "G21",
+      "bus_id": 49,
+      "pmin": 0.0,
+      "pmax": 304.0,
+      "pg_base": 204.0
+    },
+    {
+      "gen_idx": 21,
+      "gen_id": "G22",
+      "bus_id": 54,
+      "pmin": 0.0,
+      "pmax": 148.0,
+      "pg_base": 48.0
+    },
+    {
+      "gen_idx": 22,
+      "gen_id": "G23",
+      "bus_id": 55,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 23,
+      "gen_id": "G24",
+      "bus_id": 56,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 24,
+      "gen_id": "G25",
+      "bus_id": 59,
+      "pmin": 0.0,
+      "pmax": 255.0,
+      "pg_base": 155.0
+    },
+    {
+      "gen_idx": 25,
+      "gen_id": "G26",
+      "bus_id": 61,
+      "pmin": 0.0,
+      "pmax": 260.0,
+      "pg_base": 160.0
+    },
+    {
+      "gen_idx": 26,
+      "gen_id": "G27",
+      "bus_id": 62,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 27,
+      "gen_id": "G28",
+      "bus_id": 65,
+      "pmin": 0.0,
+      "pmax": 491.0,
+      "pg_base": 391.0
+    },
+    {
+      "gen_idx": 28,
+      "gen_id": "G29",
+      "bus_id": 66,
+      "pmin": 0.0,
+      "pmax": 492.0,
+      "pg_base": 392.0
+    },
+    {
+      "gen_idx": 29,
+      "gen_id": "G30",
+      "bus_id": 69,
+      "pmin": 0.0,
+      "pmax": 805.2,
+      "pg_base": 516.4
+    },
+    {
+      "gen_idx": 30,
+      "gen_id": "G31",
+      "bus_id": 70,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 31,
+      "gen_id": "G32",
+      "bus_id": 72,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 32,
+      "gen_id": "G33",
+      "bus_id": 73,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 33,
+      "gen_id": "G34",
+      "bus_id": 74,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 34,
+      "gen_id": "G35",
+      "bus_id": 76,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 35,
+      "gen_id": "G36",
+      "bus_id": 77,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 36,
+      "gen_id": "G37",
+      "bus_id": 80,
+      "pmin": 0.0,
+      "pmax": 577.0,
+      "pg_base": 477.0
+    },
+    {
+      "gen_idx": 37,
+      "gen_id": "G38",
+      "bus_id": 85,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 38,
+      "gen_id": "G39",
+      "bus_id": 87,
+      "pmin": 0.0,
+      "pmax": 104.0,
+      "pg_base": 4.0
+    },
+    {
+      "gen_idx": 39,
+      "gen_id": "G40",
+      "bus_id": 89,
+      "pmin": 0.0,
+      "pmax": 707.0,
+      "pg_base": 607.0
+    },
+    {
+      "gen_idx": 40,
+      "gen_id": "G41",
+      "bus_id": 90,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 41,
+      "gen_id": "G42",
+      "bus_id": 91,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 42,
+      "gen_id": "G43",
+      "bus_id": 92,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 43,
+      "gen_id": "G44",
+      "bus_id": 99,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 44,
+      "gen_id": "G45",
+      "bus_id": 100,
+      "pmin": 0.0,
+      "pmax": 352.0,
+      "pg_base": 252.0
+    },
+    {
+      "gen_idx": 45,
+      "gen_id": "G46",
+      "bus_id": 103,
+      "pmin": 0.0,
+      "pmax": 140.0,
+      "pg_base": 40.0
+    },
+    {
+      "gen_idx": 46,
+      "gen_id": "G47",
+      "bus_id": 104,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 47,
+      "gen_id": "G48",
+      "bus_id": 105,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 48,
+      "gen_id": "G49",
+      "bus_id": 107,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 49,
+      "gen_id": "G50",
+      "bus_id": 110,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 50,
+      "gen_id": "G51",
+      "bus_id": 111,
+      "pmin": 0.0,
+      "pmax": 136.0,
+      "pg_base": 36.0
+    },
+    {
+      "gen_idx": 51,
+      "gen_id": "G52",
+      "bus_id": 112,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 52,
+      "gen_id": "G53",
+      "bus_id": 113,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    },
+    {
+      "gen_idx": 53,
+      "gen_id": "G54",
+      "bus_id": 116,
+      "pmin": 0.0,
+      "pmax": 100.0,
+      "pg_base": 0.0
+    }
+  ]
+}

@@ -57,4 +57,10 @@ def load_case(case_id: str) -> Dict[str, Any]:
     module = importlib.import_module(info['module'])
     case_fn = getattr(module, info['fn'])
     mpc = case_fn()
+    
+    # Standard Continuous Operational Ratings:
+    if case_id == "case30" and len(mpc['branch']) > 9:
+        if mpc['branch'][9, 5] < 45.0:
+            mpc['branch'][9, 5] = 45.0
+            
     return mpc

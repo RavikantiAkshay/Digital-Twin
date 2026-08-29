@@ -1,7 +1,7 @@
 import uvicorn
 import os
 import sys
-from typing import Dict, Optional
+from typing import Dict, Optional, Any, List
 from pydantic import BaseModel
 
 # Ensure backend directory is in python module search path
@@ -14,6 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+import math
+import numpy as np
+
 try:
     from backend.load_network import SUPPORTED_CASES
     from backend.power_flow import solve_and_extract
@@ -22,6 +25,23 @@ except ImportError:
     from load_network import SUPPORTED_CASES
     from power_flow import solve_and_extract
     from custom_grid_solver import solve_custom_network, ACTIVE_CUSTOM_CASE
+
+def sanitize_json_obj(obj: Any) -> Any:
+    """Recursively replaces any NaN, Inf, or -Inf float values with valid finite defaults."""
+    if isinstance(obj, dict):
+        return {k: sanitize_json_obj(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [sanitize_json_obj(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj) or np.isnan(obj) or np.isinf(obj):
+            return 0.0
+        return obj
+    elif isinstance(obj, (np.floating, np.integer)):
+        val = float(obj) if isinstance(obj, np.floating) else int(obj)
+        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            return 0.0
+        return val
+    return obj
 
 class SolveRequest(BaseModel):
     global_scale: Optional[float] = 1.0
@@ -88,7 +108,7 @@ def solve_custom_grid(req: CustomNetworkRequest):
             bus_scales=b_scales,
             tripped_branches=req.tripped_branches
         )
-        return data
+        return sanitize_json_obj(data)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Custom grid AC solve failed: {str(e)}")
 
@@ -113,7 +133,7 @@ def stress_custom_grid(req: SolveRequest):
             bus_scales=b_scales,
             tripped_branches=req.tripped_branches
         )
-        return data
+        return sanitize_json_obj(data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to stress custom grid: {str(e)}")
 
@@ -124,7 +144,7 @@ def get_network_data(case_id: str):
     
     try:
         data = solve_and_extract(case_id)
-        return data
+        return sanitize_json_obj(data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to solve power flow for {case_id}: {str(e)}")
 
@@ -147,7 +167,7 @@ def solve_network_with_scaling(case_id: str, req: SolveRequest):
             bus_scales=b_scales,
             tripped_branches=req.tripped_branches
         )
-        return data
+        return sanitize_json_obj(data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to solve power flow for {case_id}: {str(e)}")
 

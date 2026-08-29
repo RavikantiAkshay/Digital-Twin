@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from pypower.api import runpf, ppoption
 from typing import Dict, Any, List, Optional
@@ -7,6 +8,20 @@ try:
     from backend.layout_engine import generate_layout
 except ImportError:
     from layout_engine import generate_layout
+
+def clean_num(val: Any, default: float = 0.0, digits: Optional[int] = None) -> float:
+    """Safely converts any value to a finite JSON-compliant float, replacing NaN/Inf with default."""
+    try:
+        if val is None or np.isnan(val) or np.isinf(val):
+            return default
+        f = float(val)
+        if math.isnan(f) or math.isinf(f):
+            return default
+        if digits is not None:
+            return round(f, digits)
+        return f
+    except Exception:
+        return default
 
 # Global in-memory storage for the active custom case to support stress testing
 ACTIVE_CUSTOM_CASE: Dict[str, Any] = {}
@@ -210,50 +225,17 @@ def solve_custom_network(
 
     opts = ppoption(VERBOSE=0, OUT_ALL=0)
     
-    # Run AC Power Flow
+    # Run AC Power Flow safely wrapped against matrix singularity and electrical islanding
     try:
         solved_mpc, success = runpf(mpc, opts)
-    except Exception as pf_err:
-        # If solver threw a numerical exception
-        return {
-            'summary': {
-                'case_id': case_id,
-                'case_name': case_name,
-                'success': False,
-                'status_message': f"AC Power Flow Diverged: {str(pf_err)}",
-                'grid_health': 'CRITICAL',
-                'global_load_scale': global_scale,
-                'n_bus': len(mpc['bus']),
-                'n_branch': len(mpc['branch']),
-                'n_gen': len(mpc['gen']),
-                'base_mva': float(mpc['baseMVA']),
-                'total_gen_mw': 0.0,
-                'total_gen_mvar': 0.0,
-                'total_load_mw': float(round(np.sum(mpc['bus'][:, 2]), 2)),
-                'total_load_mvar': float(round(np.sum(mpc['bus'][:, 3]), 2)),
-                'total_losses_mw': 0.0,
-                'voltage_violations': 0,
-                'line_overloads': 0,
-                'total_violations_count': 1,
-                'canvas_width': 1800.0,
-                'canvas_height': 1200.0
-            },
-            'nodes': [],
-            'edges': [],
-            'violations': [{
-                'category': 'Solver Error',
-                'type': 'divergence',
-                'element': 'Grid AC Solver',
-                'value': 'Diverged',
-                'limit': 'Convergence Failure',
-                'severity': 'critical'
-            }]
-        }
+    except Exception:
+        success = False
+        solved_mpc = mpc.copy()
 
     bus_arr = solved_mpc['bus']
     branch_arr = solved_mpc['branch']
     gen_arr = solved_mpc['gen']
-    base_mva = float(solved_mpc['baseMVA'])
+    base_mva = clean_num(solved_mpc.get('baseMVA', 100.0), 100.0)
     n_bus = len(bus_arr)
 
     # 3. Generate 2D visual layout coordinates
@@ -266,14 +248,14 @@ def solve_custom_network(
         gen_info = {
             'gen_id': f"G{i+1}",
             'bus_id': gen_bus,
-            'pg': float(round(g[1], 2)),
-            'qg': float(round(g[2], 2)),
-            'qmax': float(round(g[3], 2)),
-            'qmin': float(round(g[4], 2)),
-            'vg': float(round(g[5], 3)),
-            'status': int(g[7]),
-            'pmax': float(round(g[8], 2)),
-            'pmin': float(round(g[9], 2))
+            'pg': clean_num(g[1], 0.0, 2),
+            'qg': clean_num(g[2], 0.0, 2),
+            'qmax': clean_num(g[3], 0.0, 2),
+            'qmin': clean_num(g[4], 0.0, 2),
+            'vg': clean_num(g[5], 1.0, 3),
+            'status': int(g[7]) if not np.isnan(g[7]) else 0,
+            'pmax': clean_num(g[8], 0.0, 2),
+            'pmin': clean_num(g[9], 0.0, 2)
         }
         if gen_bus not in gen_map:
             gen_map[gen_bus] = []
@@ -288,6 +270,16 @@ def solve_custom_network(
     v_violations = 0
     violations_list = []
 
+    if not bool(success):
+        violations_list.append({
+            'category': 'Grid AC Divergence (Voltage Collapse / Islanding)',
+            'type': 'divergence',
+            'element': 'AC Newton-Raphson Solver',
+            'value': 'Non-Convergent',
+            'limit': 'Line outage or load caused grid islanding or non-convergence',
+            'severity': 'critical'
+        })
+
     scaled_buses_set = set()
     if bus_scales:
         for k in bus_scales.keys():
@@ -299,13 +291,13 @@ def solve_custom_network(
     for row in bus_arr:
         bus_id = int(row[0])
         bus_type_raw = int(row[1])
-        pd = float(round(row[2], 2))
-        qd = float(round(row[3], 2))
-        vm = float(round(row[7], 4))
-        va = float(round(row[8], 2))
-        base_kv = float(row[9])
-        vmax = float(row[11]) if row[11] > 0 else 1.10
-        vmin = float(row[12]) if row[12] > 0 else 0.90
+        pd = clean_num(row[2], 0.0, 2)
+        qd = clean_num(row[3], 0.0, 2)
+        vm = clean_num(row[7], 1.0, 4)
+        va = clean_num(row[8], 0.0, 2)
+        base_kv = clean_num(row[9], 138.0)
+        vmax = clean_num(row[11], 1.10) if row[11] > 0 else 1.10
+        vmin = clean_num(row[12], 0.90) if row[12] > 0 else 0.90
 
         tot_pd += pd
         tot_qd += qd
@@ -352,7 +344,7 @@ def solve_custom_network(
         is_targeted = bus_id in scaled_buses_set
         bus_multiplier = 1.0
         if bus_scales:
-            bus_multiplier = float(bus_scales.get(bus_id, bus_scales.get(str(bus_id), 1.0)))
+            bus_multiplier = clean_num(bus_scales.get(bus_id, bus_scales.get(str(bus_id), 1.0)), 1.0)
 
         nodes.append({
             'id': bus_id,
@@ -363,16 +355,16 @@ def solve_custom_network(
             'base_kv': base_kv,
             'pd': pd,
             'qd': qd,
-            'pg': float(round(bus_pg, 2)),
-            'qg': float(round(bus_qg, 2)),
+            'pg': clean_num(bus_pg, 0.0, 2),
+            'qg': clean_num(bus_qg, 0.0, 2),
             'v_status': v_status,
             'vmax': vmax,
             'vmin': vmin,
             'generators': gens_at_bus,
             'is_targeted': is_targeted,
             'load_multiplier': bus_multiplier,
-            'x': pos[0],
-            'y': pos[1]
+            'x': clean_num(pos[0], 500.0),
+            'y': clean_num(pos[1], 500.0)
         })
 
     # 6. Extract Branches (Edges)
@@ -383,20 +375,20 @@ def solve_custom_network(
     for i, row in enumerate(branch_arr):
         f_bus = int(row[0])
         t_bus = int(row[1])
-        r = float(round(row[2], 5))
-        x = float(round(row[3], 5))
-        b = float(round(row[4], 5))
-        rate_a = float(row[5])
-        tap = float(row[8]) if row[8] != 0 else 1.0
-        status = int(row[10])
+        r = clean_num(row[2], 0.001, 5)
+        x = clean_num(row[3], 0.01, 5)
+        b = clean_num(row[4], 0.0, 5)
+        rate_a = clean_num(row[5], 0.0, 1)
+        tap = clean_num(row[8], 1.0) if row[8] != 0 else 1.0
+        status = int(row[10]) if not np.isnan(row[10]) else 1
 
-        pf = float(round(row[13], 2)) if len(row) > 13 else 0.0
-        qf = float(round(row[14], 2)) if len(row) > 14 else 0.0
-        pt = float(round(row[15], 2)) if len(row) > 15 else 0.0
-        qt = float(round(row[16], 2)) if len(row) > 16 else 0.0
+        pf = clean_num(row[13], 0.0, 2) if len(row) > 13 else 0.0
+        qf = clean_num(row[14], 0.0, 2) if len(row) > 14 else 0.0
+        pt = clean_num(row[15], 0.0, 2) if len(row) > 15 else 0.0
+        qt = clean_num(row[16], 0.0, 2) if len(row) > 16 else 0.0
 
-        s_flow = float(round(np.sqrt(pf**2 + qf**2), 2))
-        p_loss = float(round(abs(pf + pt), 2))
+        s_flow = clean_num(np.sqrt(pf**2 + qf**2), 0.0, 2)
+        p_loss = clean_num(abs(pf + pt), 0.0, 2)
         tot_losses_mw += p_loss
 
         is_tripped = (status == 0)
@@ -419,11 +411,11 @@ def solve_custom_network(
             })
         else:
             if rate_a > 0:
-                loading_pct = float(round((s_flow / rate_a) * 100.0, 1))
+                loading_pct = clean_num((s_flow / rate_a) * 100.0, 0.0, 1)
             else:
                 loading_pct = 0.0
 
-            if loading_pct > 120.0:
+            if loading_pct > 125.0:
                 line_status = "overload"
                 line_overloads += 1
                 violations_list.append({
@@ -431,17 +423,17 @@ def solve_custom_network(
                     'type': 'line_overload',
                     'element': f"Line {f_bus} → {t_bus}",
                     'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
-                    'limit': f"Rate {rate_a} MVA (120%)",
+                    'limit': f"Rate {rate_a} MVA (125%)",
                     'severity': 'critical'
                 })
-            elif loading_pct > 100.0:
+            elif loading_pct > 110.0:
                 line_status = "warning"
                 violations_list.append({
                     'category': 'Thermal Emergency',
                     'type': 'line_emergency',
                     'element': f"Line {f_bus} → {t_bus}",
                     'value': f"{loading_pct:.1f}% ({s_flow:.1f} MVA)",
-                    'limit': f"Rate {rate_a} MVA (100%)",
+                    'limit': f"Rate {rate_a} MVA (110%)",
                     'severity': 'alert'
                 })
             else:
@@ -493,16 +485,16 @@ def solve_custom_network(
         'success': bool(success),
         'status_message': "AC Newton-Raphson Converged" if bool(success) else "AC Power Flow Diverged",
         'grid_health': grid_health,
-        'global_load_scale': global_scale,
+        'global_load_scale': clean_num(global_scale, 1.0, 2),
         'n_bus': n_bus,
         'n_branch': len(edges),
         'n_gen': len(gen_arr),
-        'base_mva': base_mva,
-        'total_gen_mw': round(tot_pg, 2),
-        'total_gen_mvar': round(tot_qg, 2),
-        'total_load_mw': round(tot_pd, 2),
-        'total_load_mvar': round(tot_qd, 2),
-        'total_losses_mw': round(tot_losses_mw, 2),
+        'base_mva': clean_num(base_mva, 100.0),
+        'total_gen_mw': clean_num(tot_pg, 0.0, 2),
+        'total_gen_mvar': clean_num(tot_qg, 0.0, 2),
+        'total_load_mw': clean_num(tot_pd, 0.0, 2),
+        'total_load_mvar': clean_num(tot_qd, 0.0, 2),
+        'total_losses_mw': clean_num(tot_losses_mw, 0.0, 2),
         'voltage_violations': v_violations,
         'line_overloads': line_overloads,
         'total_violations_count': len(violations_list),

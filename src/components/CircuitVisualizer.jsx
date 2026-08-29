@@ -12,7 +12,8 @@ import {
   GitCompare,
   Table,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export default function CircuitVisualizer({ 
@@ -144,10 +145,9 @@ export default function CircuitVisualizer({
   // Line & Node colors
   const getLineColor = (edge) => {
     if (edge.is_tripped || edge.status === 0 || edge.thermal_status === 'tripped') return '#ef4444';
-    if (edge.thermal_status === 'overload') return '#ef4444'; // Red
-    if (edge.thermal_status === 'warning') return '#FFD369';  // Gold
-    if (edge.loading_pct > 60) return '#eab308';             // Yellow
-    return '#00adb5';                                         // Teal
+    if (edge.thermal_status === 'overload') return '#ef4444'; // Red (Overload violation)
+    if (edge.thermal_status === 'warning') return '#FFD369';  // Amber (Thermal emergency warning)
+    return '#00adb5';                                         // Teal (Normal in-service corridor)
   };
 
   const getBusBorderColor = (node) => {
@@ -512,23 +512,31 @@ export default function CircuitVisualizer({
         </g>
       </svg>
 
+      {/* Real-time AC Solver Activity Toast */}
+      {isLoading && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2.5 px-4 py-2 rounded-full bg-[#19191c]/95 border border-[#55d8e1]/50 backdrop-blur-md shadow-[0_0_25px_rgba(85,216,225,0.3)] text-xs font-mono text-[#55d8e1] animate-pulse">
+          <Loader2 size={14} className="animate-spin text-[#55d8e1]" />
+          <span className="font-bold tracking-wide">Solving AC Newton-Raphson Power Flow...</span>
+        </div>
+      )}
+
       {/* Floating Canvas Action Dock (Bottom-Center) */}
       <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-[#19191c]/95 border border-[#2D333B] p-2 rounded-2xl backdrop-blur-xl shadow-2xl">
         {/* Stress Test */}
         {onOpenStressPanel && (
           <button
             onClick={onOpenStressPanel}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap shrink-0 ${
               isStressPanelOpen
                 ? 'bg-[#FFD369] text-[#1f1f22] border-[#FFD369] shadow-[0_0_15px_rgba(255,211,105,0.35)]'
                 : 'bg-[#1f1f22] border-[#2D333B] text-[#FFD369] hover:border-[#FFD369]/60 hover:bg-[#2a2a2d]'
             }`}
             title="Open Load Scaling & Stress Testing Panel"
           >
-            <Sliders size={15} />
+            <Sliders size={15} className="shrink-0" />
             <span>Stress Test</span>
             {isStressed && (
-              <span className="w-2 h-2 rounded-full bg-[#FFD369] animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-[#FFD369] animate-pulse shrink-0" />
             )}
           </button>
         )}
@@ -537,7 +545,7 @@ export default function CircuitVisualizer({
         {onOpenComparison && (
           <button
             onClick={onOpenComparison}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap ${
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border whitespace-nowrap shrink-0 ${
               isStressed
                 ? 'bg-[#55d8e1]/15 text-[#55d8e1] border-[#55d8e1]/50 shadow-[0_0_15px_rgba(85,216,225,0.25)] hover:bg-[#55d8e1]/25'
                 : 'bg-[#1f1f22] border-[#2D333B] text-[#bbc9ca] hover:text-white hover:border-[#00adb5]/50'
@@ -547,7 +555,7 @@ export default function CircuitVisualizer({
             <GitCompare size={15} className="shrink-0" />
             <span>Compare</span>
             {isStressed && (
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#55d8e1]/25 text-[#55d8e1] whitespace-nowrap leading-none">
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#55d8e1]/25 text-[#55d8e1] whitespace-nowrap leading-none shrink-0">
                 Δ Stressed
               </span>
             )}
@@ -558,10 +566,10 @@ export default function CircuitVisualizer({
         {onOpenDataTable && (
           <button
             onClick={onOpenDataTable}
-            className="px-3.5 py-2 rounded-xl bg-[#1f1f22] border border-[#2D333B] text-[#bbc9ca] hover:text-[#55d8e1] hover:border-[#00adb5]/50 hover:bg-[#2a2a2d] text-xs font-semibold transition-all flex items-center gap-2"
+            className="px-4 py-2 rounded-xl bg-[#1f1f22] border border-[#2D333B] text-[#bbc9ca] hover:text-[#55d8e1] hover:border-[#00adb5]/50 hover:bg-[#2a2a2d] text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap shrink-0"
             title="Open Full Matrix Data Table"
           >
-            <Table size={15} />
+            <Table size={15} className="shrink-0" />
             <span>Matrix Data</span>
           </button>
         )}
@@ -615,11 +623,19 @@ export default function CircuitVisualizer({
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 h-1 bg-[#00adb5] rounded" />
-            <span>Line &lt;60% Load</span>
+            <span>Line &le;85% (Normal)</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-4 h-1 bg-[#FFD369] rounded" />
-            <span>Line Overload</span>
+            <span>Line &gt;85% (Heavy)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-1 bg-[#ef4444] rounded" />
+            <span>Line &gt;100% (Overload)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-4 h-0.5 border-b-2 border-dashed border-[#ef4444]" />
+            <span>Tripped Line</span>
           </div>
         </div>
       </div>

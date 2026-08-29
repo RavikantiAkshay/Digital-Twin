@@ -11,7 +11,8 @@ import {
   Power,
   RotateCcw,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 
 export default function InspectorPanel({ 
@@ -37,9 +38,13 @@ export default function InspectorPanel({
             </div>
             <div>
               <h2 className="text-base font-bold text-[#e4e1e5] uppercase tracking-wide">
-                {type === 'bus' ? `Bus Telemetry (${data.label})` : `Line ${data.from_bus} → ${data.to_bus}`}
+                {type === 'bus' ? `Bus ${data.id}` : `Line ${data.from_bus} → ${data.to_bus}`}
               </h2>
-              <p className="text-[11px] text-[#bbc9ca]">AC Power Flow Real-Time Inspector</p>
+              <p className="text-[11px] text-[#bbc9ca] font-mono">
+                {type === 'bus' 
+                  ? (data.index ? `Node #${data.index} of ${summary?.n_bus || 300} (IEEE Bus ${data.id})` : `IEEE Bus ID: ${data.id}`)
+                  : 'Transmission Branch Corridor'}
+              </p>
             </div>
           </div>
           <button
@@ -179,19 +184,26 @@ export default function InspectorPanel({
                   onClick={() => onToggleLineTrip(data.id, data.from_bus, data.to_bus)}
                   disabled={isLoading}
                   className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-md ${
-                    isLineTripped
-                      ? 'bg-emerald-500 hover:bg-emerald-400 text-[#002b1b] shadow-emerald-500/20'
-                      : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/50 hover:border-red-500 shadow-red-500/10'
+                    isLoading
+                      ? 'bg-[#2a2a2e] text-[#bbc9ca] border border-[#3e3e42] cursor-not-allowed'
+                      : isLineTripped
+                        ? 'bg-emerald-500 hover:bg-emerald-400 text-[#002b1b] shadow-emerald-500/20 active:scale-[0.98]'
+                        : 'bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/50 hover:border-red-500 shadow-red-500/10 active:scale-[0.98]'
                   }`}
                 >
-                  {isLineTripped ? (
+                  {isLoading ? (
                     <>
-                      <RotateCcw size={14} className={isLoading ? 'animate-spin' : ''} />
+                      <Loader2 size={15} className="animate-spin text-[#55d8e1]" />
+                      <span className="font-mono text-[#55d8e1]">Solving AC Power Flow...</span>
+                    </>
+                  ) : isLineTripped ? (
+                    <>
+                      <RotateCcw size={14} />
                       <span>Close Breaker & Restore Line</span>
                     </>
                   ) : (
                     <>
-                      <Zap size={14} className={isLoading ? 'animate-spin' : ''} />
+                      <Zap size={14} />
                       <span>Trip Line (Open Breaker)</span>
                     </>
                   )}
@@ -209,7 +221,7 @@ export default function InspectorPanel({
                 <span className={`font-mono font-bold text-sm ${
                   isLineTripped 
                     ? 'text-red-400' 
-                    : (data.loading_pct > 100 ? 'text-red-400' : (data.loading_pct > 80 ? 'text-[#FFD369]' : 'text-[#55d8e1]'))
+                    : (data.thermal_status === 'overload' ? 'text-red-400' : (data.thermal_status === 'warning' ? 'text-[#FFD369]' : 'text-[#55d8e1]'))
                 }`}>
                   {isLineTripped ? '0.0% (Tripped)' : `${data.loading_pct}%`}
                 </span>
@@ -218,7 +230,7 @@ export default function InspectorPanel({
               <div className="w-full bg-[#2a2a2d] h-2.5 rounded-full overflow-hidden">
                 <div 
                   className={`h-full transition-all duration-500 ${
-                    isLineTripped ? 'bg-red-500/30' : (data.loading_pct > 100 ? 'bg-red-500' : (data.loading_pct > 80 ? 'bg-[#FFD369]' : 'bg-[#55d8e1]'))
+                    isLineTripped ? 'bg-red-500/30' : (data.thermal_status === 'overload' ? 'bg-red-500' : (data.thermal_status === 'warning' ? 'bg-[#FFD369]' : 'bg-[#55d8e1]'))
                   }`}
                   style={{ width: isLineTripped ? '0%' : `${Math.min(100, data.loading_pct)}%` }}
                 />

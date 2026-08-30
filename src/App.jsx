@@ -131,11 +131,21 @@ export default function App() {
   };
 
   // Interactive Line Outage / Circuit Breaker Switching
-  const handleToggleLineTrip = async (lineId, fromBus, toBus) => {
+  const handleToggleLineTrip = async (arg1, arg2, arg3) => {
+    let lineId = arg1;
+    let fromBus = arg2;
+    let toBus = arg3;
+
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      lineId = arg1.id;
+      fromBus = arg1.from_bus;
+      toBus = arg1.to_bus;
+    }
+
     const f = parseInt(fromBus, 10);
     const t = parseInt(toBus, 10);
-    const key = `${f}-${t}`;
-    const reverseKey = `${t}-${f}`;
+    const key = !isNaN(f) && !isNaN(t) ? `${f}-${t}` : String(lineId);
+    const reverseKey = !isNaN(f) && !isNaN(t) ? `${t}-${f}` : String(lineId);
 
     const isCurrentlyTripped = trippedBranches.some(k => k === key || k === reverseKey || k === lineId);
     const newTripped = isCurrentlyTripped
@@ -164,6 +174,18 @@ export default function App() {
       }
       const data = await res.json();
       setNetworkData(data);
+
+      // Immediately refresh selectedElement to match the new solver response
+      if (selectedElement && selectedElement.type === 'line') {
+        const updatedEdge = data.edges?.find(e => 
+          (e.id && e.id === lineId) ||
+          (e.from_bus === f && e.to_bus === t) ||
+          (e.from_bus === t && e.to_bus === f)
+        );
+        if (updatedEdge) {
+          setSelectedElement({ type: 'line', data: updatedEdge });
+        }
+      }
     } catch (err) {
       console.error(`Failed to solve contingency power flow for ${selectedCaseId}:`, err);
     } finally {
@@ -207,10 +229,43 @@ export default function App() {
   };
 
   // Reset grid back to 1.0x baseline state
-  const handleResetStress = () => {
+  const handleResetStress = async () => {
     setActiveBusScales({});
     setTrippedBranches([]);
-    handleApplyStress({});
+    setSelectedElement(null);
+
+    // If baselineData exists and is not custom grid, immediately restore cached baseline (0ms instant response)
+    if (baselineData && !selectedCaseId.startsWith('custom')) {
+      setNetworkData(baselineData);
+      setIsLoading(false);
+      return;
+    }
+
+    // Otherwise explicitly solve with empty scales and empty tripped_branches
+    setIsLoading(true);
+    try {
+      const endpoint = selectedCaseId.startsWith('custom') 
+        ? '/api/network/custom/stress' 
+        : `/api/network/${selectedCaseId}/solve`;
+      
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          global_scale: 1.0,
+          bus_scales: {},
+          tripped_branches: []
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNetworkData(data);
+      }
+    } catch (err) {
+      console.error(`Failed to reset stress for ${selectedCaseId}:`, err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCaseSelection = (caseId) => {
@@ -291,13 +346,9 @@ export default function App() {
 
       {/* MODE 2: MAIN DIGITAL TWIN CIRCUIT VISUALIZER */}
       {mode === 'visualizer' && (
-        <div className="h-screen w-screen flex flex-col overflow-hidden">
+        <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#F5F3EC] text-[#1C1B18]">
           {/* Top Navbar */}
           <TopBar
-            cases={cases}
-            selectedCaseId={selectedCaseId}
-            onSelectCase={handleCaseSelection}
-            summary={networkData?.summary}
             onHomeClick={() => setMode('selection')}
             onRefreshClick={() => {
               if (selectedCaseId.startsWith('custom')) {
@@ -306,64 +357,51 @@ export default function App() {
                 loadNetworkData(selectedCaseId);
               }
             }}
-            onOpenCustomModal={() => setIsCustomModalOpen(true)}
             isLoading={isLoading}
           />
 
-          {/* Main Visualizer Workspace */}
-          <div className="flex-1 relative overflow-hidden">
+          {/* Main Visualizer Workspace: Left Controls + Canvas + Right Overview/Inspector */}
+          <div className="flex-1 flex overflow-hidden relative">
             {!networkData && isLoading ? (
-              <div className="h-full w-full flex flex-col items-center justify-center bg-[#131316] text-[#55d8e1] gap-4">
-                <Loader2 size={40} className="animate-spin" />
-                <div className="text-sm font-bold tracking-wide font-mono">
-                  Solving AC Newton-Raphson Power Flow for {selectedCaseId.toUpperCase()}...
+              <div className="h-full w-full flex flex-col items-center justify-center bg-[#F5F3EC] text-[#244B43] gap-4">
+                <Loader2 size={36} className="animate-spin" />
+                <div className="text-xs font-bold font-mono text-[#5C5950]">
+                  Solving AC Power Flow for {selectedCaseId.toUpperCase()}...
                 </div>
               </div>
             ) : networkData ? (
-              <CircuitVisualizer
-                networkData={networkData}
-                selectedElement={activeElement}
-                onSelectElement={setSelectedElement}
-                showFlowAnimation={showFlowAnimation}
-                setShowFlowAnimation={setShowFlowAnimation}
-                onOpenStressPanel={() => setIsStressPanelOpen(prev => !prev)}
-                isStressPanelOpen={isStressPanelOpen}
-                onOpenComparison={() => setIsComparisonOpen(true)}
-                isStressed={isStressed}
-                onOpenDataTable={() => setIsDataTableOpen(true)}
-                onTriggerAIHeal={handleTriggerAIHeal}
-                isAISolving={isAISolving}
-                onRefreshClick={() => {
-                  if (selectedCaseId.startsWith('custom')) {
-                    handleApplyStress(activeBusScales);
-                  } else {
-                    loadNetworkData(selectedCaseId);
-                  }
-                }}
-                isLoading={isLoading}
-              />
+              <>
+                <CircuitVisualizer
+                  networkData={networkData}
+                  selectedElement={activeElement}
+                  onSelectElement={setSelectedElement}
+                  showFlowAnimation={showFlowAnimation}
+                  setShowFlowAnimation={setShowFlowAnimation}
+                  onOpenComparison={() => setIsComparisonOpen(true)}
+                  isStressed={isStressed}
+                  onOpenDataTable={() => setIsDataTableOpen(true)}
+                  onTriggerAIHeal={handleTriggerAIHeal}
+                  isAISolving={isAISolving}
+                  isLoading={isLoading}
+                  cases={cases}
+                  selectedCaseId={selectedCaseId}
+                  onSelectCase={handleCaseSelection}
+                  onOpenCustomModal={() => setIsCustomModalOpen(true)}
+                  onApplyStress={handleApplyStress}
+                  onResetStress={handleResetStress}
+                />
+
+                {/* Persistent Right Sidebar: Network Overview / Element Inspector */}
+                <InspectorPanel
+                  element={activeElement}
+                  onClose={() => setSelectedElement(null)}
+                  summary={networkData?.summary}
+                  onToggleLineTrip={handleToggleLineTrip}
+                  trippedBranches={trippedBranches}
+                  isLoading={isLoading}
+                />
+              </>
             ) : null}
-
-            {/* Slide-over Inspector Panel */}
-            <InspectorPanel
-              element={activeElement}
-              onClose={() => setSelectedElement(null)}
-              summary={networkData?.summary}
-              onToggleLineTrip={handleToggleLineTrip}
-              isLoading={isLoading}
-            />
-
-            {/* Slide-over Stress Test Panel */}
-            <StressTestPanel
-              isOpen={isStressPanelOpen}
-              onClose={() => setIsStressPanelOpen(false)}
-              summary={networkData?.summary}
-              nodes={networkData?.nodes || []}
-              violations={networkData?.violations || []}
-              onApplyStress={handleApplyStress}
-              onOpenComparison={() => setIsComparisonOpen(true)}
-              isLoading={isLoading}
-            />
           </div>
         </div>
       )}

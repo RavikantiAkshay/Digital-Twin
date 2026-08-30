@@ -15,14 +15,11 @@ import {
   XCircle, 
   Columns, 
   ArrowRight,
-  HelpCircle,
-  FolderOpen,
-  Sparkles,
-  RefreshCw,
-  Plus
+  Plus,
+  FileSpreadsheet,
+  FileCode2
 } from 'lucide-react';
 
-// Preset sample networks
 const PRESET_TEMPLATES = {
   '5bus': {
     name: '5-Bus Sample Transmission Grid',
@@ -83,37 +80,32 @@ const PRESET_TEMPLATES = {
 };
 
 export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid }) {
-  // 1. All hooks declared unconditionally at the very top of component
-  const [modalTab, setModalTab] = useState('tables');
-  const [activeTable, setActiveTable] = useState('buses');
+  const [modalTab, setModalTab] = useState('tables'); // 'tables' | 'upload'
+  const [activeTable, setActiveTable] = useState('buses'); // 'buses' | 'gens' | 'branches' | 'none'
   const [gridName, setGridName] = useState('5-Bus Sample Transmission Grid');
   const [baseMva, setBaseMva] = useState(100.0);
   const [buses, setBuses] = useState(PRESET_TEMPLATES['5bus'].buses);
   const [generators, setGenerators] = useState(PRESET_TEMPLATES['5bus'].generators);
   const [branches, setBranches] = useState(PRESET_TEMPLATES['5bus'].branches);
-  const [guideTab, setGuideTab] = useState('buses');
   const [uploadFeedback, setUploadFeedback] = useState(null);
   const [isSolving, setIsSolving] = useState(false);
   const [solveError, setSolveError] = useState(null);
 
   const fileInputRef = useRef(null);
 
-  // 2. Topology validation useMemo Hook declared unconditionally
+  // Topology validation
   const validation = useMemo(() => {
     const errors = [];
-    const warnings = [];
-
-    // Bus validation
     const busIdSet = new Set();
     let slackCount = 0;
 
     buses.forEach((b, idx) => {
       const bId = Number(b.id);
       if (isNaN(bId) || bId <= 0) {
-        errors.push(`Bus row #${idx + 1} has an invalid ID (${b.id}). Must be positive integer.`);
+        errors.push(`Bus #${idx + 1}: Invalid ID.`);
       }
       if (busIdSet.has(bId)) {
-        errors.push(`Duplicate Bus ID '${bId}' detected at row #${idx + 1}.`);
+        errors.push(`Bus #${idx + 1}: Duplicate ID '${bId}'.`);
       }
       busIdSet.add(bId);
 
@@ -123,83 +115,47 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
       }
     });
 
-    if (buses.length === 0) {
-      errors.push('The grid must have at least 1 Bus.');
-    }
-    if (slackCount === 0) {
-      errors.push('No Slack (Reference) Bus defined. At least 1 bus must have Type="Slack".');
-    } else if (slackCount > 1) {
-      warnings.push(`Multiple Slack buses detected (${slackCount}). Standard power flow uses 1 reference angle.`);
-    }
+    if (buses.length === 0) errors.push('At least 1 bus required.');
+    if (slackCount === 0) errors.push('1 Slack bus required.');
 
-    // Generator validation
-    generators.forEach((g, idx) => {
-      const gBus = Number(g.bus_id);
-      if (!busIdSet.has(gBus)) {
-        errors.push(`Generator #${idx + 1} (${g.gen_id}) references non-existent Bus ID '${g.bus_id}'.`);
+    generators.forEach((g) => {
+      if (!busIdSet.has(Number(g.bus_id))) {
+        errors.push(`Gen ${g.gen_id}: Invalid Bus ID '${g.bus_id}'.`);
       }
     });
 
-    if (generators.length === 0) {
-      warnings.push('No generators configured. Grid has no real power generation sources.');
-    }
-
-    // Branch validation
     branches.forEach((br, idx) => {
-      const fBus = Number(br.from_bus);
-      const tBus = Number(br.to_bus);
-      if (!busIdSet.has(fBus)) {
-        errors.push(`Branch #${idx + 1} From-Bus '${br.from_bus}' does not exist in Buses matrix.`);
+      const f = Number(br.from_bus);
+      const t = Number(br.to_bus);
+      if (!busIdSet.has(f) || !busIdSet.has(t)) {
+        errors.push(`Branch #${idx + 1}: Non-existent bus connection.`);
       }
-      if (!busIdSet.has(tBus)) {
-        errors.push(`Branch #${idx + 1} To-Bus '${br.to_bus}' does not exist in Buses matrix.`);
-      }
-      if (fBus === tBus && fBus !== 0) {
-        errors.push(`Branch #${idx + 1} has identical From and To Bus (${fBus}). Self-loops not permitted.`);
-      }
-      if (Number(br.x) <= 0) {
-        warnings.push(`Branch #${idx + 1} Reactance X (${br.x}) is non-positive. Inductive reactance required.`);
+      if (f === t && f !== 0) {
+        errors.push(`Branch #${idx + 1}: Self-loop not permitted.`);
       }
     });
-
-    if (branches.length === 0) {
-      errors.push('The grid must have at least 1 Transmission Branch / Line.');
-    }
 
     return {
       isValid: errors.length === 0,
-      errors,
-      warnings
+      errors
     };
   }, [buses, generators, branches]);
 
-  // If modal is closed, return null AFTER all hooks are called
+  const totalLoadMw = useMemo(() => {
+    return buses.reduce((acc, b) => acc + (Number(b.pd) || 0), 0);
+  }, [buses]);
+
   if (!isOpen) return null;
 
-  // Load Preset
-  const handleLoadPreset = (presetKey) => {
-    const p = PRESET_TEMPLATES[presetKey];
-    if (!p) return;
-    setGridName(p.name);
-    setBaseMva(p.base_mva);
-    setBuses(JSON.parse(JSON.stringify(p.buses)));
-    setGenerators(JSON.parse(JSON.stringify(p.generators)));
-    setBranches(JSON.parse(JSON.stringify(p.branches)));
-    setUploadFeedback(`Loaded ${p.name} template successfully!`);
-    setSolveError(null);
-  };
-
-  // ----------------------------------------------------
-  // TABLE ROW OPERATIONS
-  // ----------------------------------------------------
+  // Bus Actions
   const handleAddBus = () => {
-    const nextId = buses.length > 0 ? Math.max(...buses.map(b => Number(b.id) || 0)) + 1 : 1;
+    const maxId = buses.reduce((max, b) => Math.max(max, Number(b.id) || 0), 0);
     setBuses([...buses, {
-      id: nextId,
+      id: maxId + 1,
       type: 'pq',
-      pd: 25.0,
-      qd: 10.0,
-      base_kv: 230.0,
+      pd: 20,
+      qd: 5,
+      base_kv: 230,
       vm: 1.0,
       va: 0.0,
       vmin: 0.90,
@@ -207,90 +163,75 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
     }]);
   };
 
-  const handleUpdateBus = (index, field, value) => {
-    const updated = [...buses];
-    updated[index] = { ...updated[index], [field]: value };
-    setBuses(updated);
+  const handleUpdateBus = (idx, field, val) => {
+    const copy = [...buses];
+    copy[idx] = { ...copy[idx], [field]: val };
+    setBuses(copy);
   };
 
-  const handleDeleteBus = (index) => {
-    if (buses.length <= 1) return;
-    const busToDelete = buses[index].id;
-    setBuses(buses.filter((_, i) => i !== index));
-    setGenerators(generators.filter(g => Number(g.bus_id) !== Number(busToDelete)));
-    setBranches(branches.filter(br => Number(br.from_bus) !== Number(busToDelete) && Number(br.to_bus) !== Number(busToDelete)));
+  const handleDeleteBus = (idx) => {
+    setBuses(buses.filter((_, i) => i !== idx));
   };
 
-  const handleAddGenerator = () => {
-    const nextNum = generators.length + 1;
-    const targetBus = buses.length > 0 ? buses[0].id : 1;
+  // Gen Actions
+  const handleAddGen = () => {
+    const nextIdx = generators.length + 1;
+    const firstBusId = buses[0]?.id || 1;
     setGenerators([...generators, {
-      gen_id: `G${nextNum}`,
-      bus_id: targetBus,
-      pg: 0.0,
-      qg: 0.0,
-      vg: 1.05,
-      pmax: 200.0,
-      pmin: 0.0,
-      qmax: 100.0,
-      qmin: -100.0,
+      gen_id: `G${nextIdx}`,
+      bus_id: firstBusId,
+      pg: 50,
+      qg: 0,
+      vg: 1.02,
+      pmax: 150,
+      pmin: 0,
+      qmax: 80,
+      qmin: -50,
       status: 1
     }]);
   };
 
-  const handleUpdateGenerator = (index, field, value) => {
-    const updated = [...generators];
-    updated[index] = { ...updated[index], [field]: value };
-    setGenerators(updated);
+  const handleUpdateGen = (idx, field, val) => {
+    const copy = [...generators];
+    copy[idx] = { ...copy[idx], [field]: val };
+    setGenerators(copy);
   };
 
-  const handleDeleteGenerator = (index) => {
-    setGenerators(generators.filter((_, i) => i !== index));
+  const handleDeleteGen = (idx) => {
+    setGenerators(generators.filter((_, i) => i !== idx));
   };
 
+  // Branch Actions
   const handleAddBranch = () => {
-    const fromId = buses.length > 0 ? buses[0].id : 1;
-    const toId = buses.length > 1 ? buses[1].id : (buses.length > 0 ? buses[0].id : 2);
+    const fBus = buses[0]?.id || 1;
+    const tBus = buses[1]?.id || buses[0]?.id || 2;
     setBranches([...branches, {
-      from_bus: fromId,
-      to_bus: toId,
-      r: 0.03,
-      x: 0.12,
+      from_bus: fBus,
+      to_bus: tBus,
+      r: 0.02,
+      x: 0.08,
       b: 0.02,
-      rate_a: 100.0,
+      rate_a: 100,
       tap: 1.0,
       status: 1
     }]);
   };
 
-  const handleUpdateBranch = (index, field, value) => {
-    const updated = [...branches];
-    updated[index] = { ...updated[index], [field]: value };
-    setBranches(updated);
+  const handleUpdateBranch = (idx, field, val) => {
+    const copy = [...branches];
+    copy[idx] = { ...copy[idx], [field]: val };
+    setBranches(copy);
   };
 
-  const handleDeleteBranch = (index) => {
-    if (branches.length <= 1) return;
-    setBranches(branches.filter((_, i) => i !== index));
+  const handleDeleteBranch = (idx) => {
+    setBranches(branches.filter((_, i) => i !== idx));
   };
 
-  // ----------------------------------------------------
-  // CSV & JSON PARSING ENGINE
-  // ----------------------------------------------------
+  // File Upload Handling
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    processUploadedFile(file);
-  };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    processUploadedFile(file);
-  };
-
-  const processUploadedFile = (file) => {
     setSolveError(null);
     setUploadFeedback(null);
     const reader = new FileReader();
@@ -340,10 +281,10 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
           }
           if (json.name) setGridName(json.name);
           if (json.base_mva) setBaseMva(Number(json.base_mva));
-          setUploadFeedback(`JSON file "${file.name}" parsed successfully!`);
+          setUploadFeedback(`Imported "${file.name}".`);
           setModalTab('tables');
         } catch (err) {
-          setSolveError(`JSON Parse Error: ${err.message}`);
+          setSolveError(`JSON Error: ${err.message}`);
         }
       };
       reader.readAsText(file);
@@ -353,20 +294,18 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
           const text = evt.target.result;
           parseCsvText(text, file.name);
         } catch (err) {
-          setSolveError(`CSV Parse Error: ${err.message}`);
+          setSolveError(`CSV Error: ${err.message}`);
         }
       };
       reader.readAsText(file);
     } else {
-      setSolveError('Unsupported file type. Please upload a .json or .csv grid dataset.');
+      setSolveError('Please upload a .json or .csv network file.');
     }
   };
 
   const parseCsvText = (text, filename) => {
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
-    if (lines.length < 2) {
-      throw new Error('CSV file contains no data rows.');
-    }
+    if (lines.length < 2) throw new Error('CSV file contains no data rows.');
 
     const headers = lines[0].toLowerCase().split(/[,;\t]/).map(h => h.trim().replace(/['"]/g, ''));
     const rows = lines.slice(1).map(line => line.split(/[,;\t]/).map(val => val.trim().replace(/['"]/g, '')));
@@ -438,30 +377,20 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
     let filename = '';
 
     if (type === 'buses') {
-      csvContent = "id,type,pd_mw,qd_mvar,base_kv,vm,va,vmin,vmax\n" +
+      csvContent = "id,type,pd,qd,base_kv,vm,va,vmin,vmax\n" +
         buses.map(b => `${b.id},${b.type},${b.pd},${b.qd},${b.base_kv},${b.vm},${b.va},${b.vmin},${b.vmax}`).join('\n');
-      filename = 'custom_buses_template.csv';
+      filename = 'buses_template.csv';
     } else if (type === 'gens') {
-      csvContent = "gen_id,bus_id,pg_mw,qg_mvar,vg,pmax,pmin,qmax,qmin,status\n" +
+      csvContent = "gen_id,bus_id,pg,qg,vg,pmax,pmin,qmax,qmin,status\n" +
         generators.map(g => `${g.gen_id},${g.bus_id},${g.pg},${g.qg},${g.vg},${g.pmax},${g.pmin},${g.qmax},${g.qmin},${g.status}`).join('\n');
-      filename = 'custom_generators_template.csv';
+      filename = 'generators_template.csv';
     } else if (type === 'branches') {
       csvContent = "from_bus,to_bus,r,x,b,rate_a,tap,status\n" +
         branches.map(br => `${br.from_bus},${br.to_bus},${br.r},${br.x},${br.b},${br.rate_a},${br.tap},${br.status}`).join('\n');
-      filename = 'custom_branches_template.csv';
-    } else if (type === 'json') {
-      const fullGrid = {
-        name: gridName,
-        base_mva: baseMva,
-        buses,
-        generators,
-        branches
-      };
-      csvContent = JSON.stringify(fullGrid, null, 2);
-      filename = 'custom_grid_topology.json';
+      filename = 'branches_template.csv';
     }
 
-    const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8;' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -471,9 +400,10 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
     document.body.removeChild(link);
   };
 
+  // Solve and Launch
   const handleSolveAndLaunch = async () => {
     if (!validation.isValid) {
-      setSolveError('Cannot solve: Please resolve the topology errors listed above.');
+      setSolveError(validation.errors[0] || 'Invalid grid topology.');
       return;
     }
 
@@ -481,12 +411,11 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
     setSolveError(null);
 
     const payload = {
-      name: gridName,
-      case_id: 'custom_grid',
-      base_mva: Number(baseMva),
+      name: gridName || 'Custom Grid',
+      base_mva: Number(baseMva) || 100.0,
       buses: buses.map(b => ({
         id: Number(b.id),
-        type: String(b.type).toLowerCase(),
+        type: b.type,
         pd: Number(b.pd || 0),
         qd: Number(b.qd || 0),
         base_kv: Number(b.base_kv || 230),
@@ -528,185 +457,146 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.detail || `Server returned error ${res.status}`);
+        throw new Error(errorData.detail || `Server error ${res.status}`);
       }
 
       const solvedData = await res.json();
       if (solvedData.summary && solvedData.summary.success === false) {
-        throw new Error(solvedData.summary.status_message || 'AC Power Flow Diverged. Check generator capacities and load magnitudes.');
+        throw new Error(solvedData.summary.status_message || 'Power flow diverged.');
       }
 
       onLaunchCustomGrid(solvedData, gridName);
       onClose();
     } catch (err) {
       console.error('Custom solve error:', err);
-      setSolveError(err.message || 'Failed to solve custom power grid.');
+      setSolveError(err.message || 'Failed to solve power grid.');
     } finally {
       setIsSolving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200 font-sans">
-      <div className="bg-[#19191c] border border-[#2D333B] rounded-2xl w-full max-w-7xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150 font-sans">
+      <div className="bg-[#FAF8F4] border border-[#E3DFD5] rounded-2xl w-full max-w-7xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-[#1C1B18]">
         
         {/* ========================================================================= */}
-        {/* MODAL HEADER                                                              */}
+        {/* MODAL HEADER (CLEAN & MINIMAL)                                            */}
         {/* ========================================================================= */}
-        <div className="p-4 sm:p-5 border-b border-[#2D333B] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#1f1f22]">
+        <div className="px-6 py-4 border-b border-[#E3DFD5] flex items-center justify-between bg-[#FAF8F4]">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-[#55d8e1]/10 text-[#55d8e1] border border-[#55d8e1]/30">
-              <PlusCircle size={24} />
+            <div className="p-2 rounded-xl bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5]">
+              <PlusCircle size={20} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-[#e4e1e5]">
-                  Custom Network Builder
-                </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#55d8e1]/10 border border-[#55d8e1]/30 text-[#55d8e1] font-semibold">
-                  AC Newton-Raphson
-                </span>
-              </div>
-              <p className="text-xs text-[#bbc9ca]">
-                Interactive 3-Card Table Sheet Editor • CSV & JSON Grid Specification
-              </p>
-            </div>
+            <h2 className="text-base font-bold text-[#1C1B18]">
+              Custom Network Builder
+            </h2>
           </div>
 
-          {/* Top Switcher Controls */}
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <div className="flex items-center bg-[#131316] border border-[#2D333B] p-1 rounded-xl gap-1">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-[#ECE8DF] border border-[#DDD8CD] p-1 rounded-xl gap-1 text-xs">
               <button
                 onClick={() => setModalTab('tables')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
                   modalTab === 'tables'
-                    ? 'bg-[#55d8e1] text-[#003739] shadow-[0_0_12px_rgba(85,216,225,0.25)]'
-                    : 'text-[#bbc9ca] hover:text-white'
+                    ? 'bg-[#244B43] text-[#FAF8F4] shadow-sm'
+                    : 'text-[#5C5950] hover:text-[#1C1B18]'
                 }`}
               >
                 <Table size={14} />
-                <span>Table Sheet Editor</span>
+                <span>Table Editor</span>
               </button>
               <button
                 onClick={() => setModalTab('upload')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
                   modalTab === 'upload'
-                    ? 'bg-[#55d8e1] text-[#003739] shadow-[0_0_12px_rgba(85,216,225,0.25)]'
-                    : 'text-[#bbc9ca] hover:text-white'
+                    ? 'bg-[#244B43] text-[#FAF8F4] shadow-sm'
+                    : 'text-[#5C5950] hover:text-[#1C1B18]'
                 }`}
               >
                 <Upload size={14} />
-                <span>File Import & Guide</span>
+                <span>File Import</span>
               </button>
             </div>
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-[#bbc9ca] hover:text-white hover:bg-[#2a2a2d] transition-colors ml-1"
+              className="p-2 rounded-xl text-[#7A766D] hover:text-[#1C1B18] hover:bg-[#ECE8DF] transition-colors ml-1"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
         </div>
 
         {/* ========================================================================= */}
-        {/* PRESET QUICK-LOADER & GRID CONFIG BAR                                     */}
+        {/* TOP CONFIG BAR (NO REDUNDANT PRESETS)                                     */}
         {/* ========================================================================= */}
-        <div className="px-5 py-3 border-b border-[#2D333B] bg-[#131316] flex flex-wrap items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 flex-1 min-w-[280px]">
-            <div className="flex items-center gap-2">
-              <span className="text-[#869394] font-medium">Grid Title:</span>
-              <input
-                type="text"
-                value={gridName}
-                onChange={(e) => setGridName(e.target.value)}
-                className="bg-[#1b1b1e] border border-[#2D333B] text-[#e4e1e5] rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-[#55d8e1] font-semibold w-48 sm:w-60"
-              />
-            </div>
-            <div className="flex items-center gap-1.5 text-[#bbc9ca]">
-              <span className="text-[#869394]">Base:</span>
-              <input
-                type="number"
-                value={baseMva}
-                onChange={(e) => setBaseMva(Number(e.target.value) || 100)}
-                className="bg-[#1b1b1e] border border-[#2D333B] text-[#55d8e1] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#55d8e1] font-mono font-bold w-16"
-              />
-              <span>MVA</span>
-            </div>
-          </div>
-
+        <div className="px-6 py-2.5 border-b border-[#E3DFD5] bg-[#F4F1EA] flex items-center gap-6 text-xs">
           <div className="flex items-center gap-2">
-            <span className="text-[#869394] font-medium hidden md:inline">Presets:</span>
-            <button
-              onClick={() => handleLoadPreset('5bus')}
-              className="px-2.5 py-1 rounded-lg bg-[#1f1f22] border border-[#2D333B] text-[#55d8e1] hover:border-[#55d8e1]/50 hover:bg-[#2a2a2d] transition-all flex items-center gap-1 font-medium"
-              title="Load 5-Bus Sample Grid"
-            >
-              <Sparkles size={13} className="text-[#55d8e1]" />
-              <span>5-Bus Sample</span>
-            </button>
-            <button
-              onClick={() => handleLoadPreset('3bus')}
-              className="px-2.5 py-1 rounded-lg bg-[#1f1f22] border border-[#2D333B] text-[#bbc9ca] hover:text-[#55d8e1] hover:border-[#55d8e1]/50 hover:bg-[#2a2a2d] transition-all flex items-center gap-1"
-              title="Load 3-Bus Loop Grid"
-            >
-              <span>3-Bus Loop</span>
-            </button>
-            <button
-              onClick={() => handleLoadPreset('blank')}
-              className="px-2 py-1 rounded-lg bg-[#1f1f22] border border-[#2D333B] text-[#869394] hover:text-red-400 hover:border-red-500/30 transition-all"
-              title="Reset to minimal blank grid"
-            >
-              <span>Clear</span>
-            </button>
+            <span className="text-[#7A766D] font-medium">Grid Title:</span>
+            <input
+              type="text"
+              value={gridName}
+              onChange={(e) => setGridName(e.target.value)}
+              className="bg-[#FAF8F4] border border-[#DDD8CD] text-[#1C1B18] rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:border-[#244B43] font-semibold w-64"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 text-[#5C5950]">
+            <span className="text-[#7A766D]">Base:</span>
+            <input
+              type="number"
+              value={baseMva}
+              onChange={(e) => setBaseMva(Number(e.target.value) || 100)}
+              className="bg-[#FAF8F4] border border-[#DDD8CD] text-[#244B43] rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-[#244B43] font-mono font-bold w-16 text-center"
+            />
+            <span>MVA</span>
           </div>
         </div>
 
         {/* ========================================================================= */}
         {/* MAIN BODY WORKSPACE                                                       */}
         {/* ========================================================================= */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           
           {uploadFeedback && (
-            <div className="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="p-3 rounded-xl bg-[#E3ECE6] border border-[#A2BEB5] text-[#1E433C] text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                <CheckCircle2 size={16} className="text-[#244B43] shrink-0" />
                 <span>{uploadFeedback}</span>
               </div>
-              <button onClick={() => setUploadFeedback(null)} className="text-emerald-400 hover:text-white">
+              <button onClick={() => setUploadFeedback(null)} className="text-[#244B43]">
                 <X size={14} />
               </button>
             </div>
           )}
 
           {solveError && (
-            <div className="p-3 rounded-xl bg-red-950/40 border border-red-500/40 text-red-300 text-xs flex items-center justify-between animate-in fade-in">
+            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <XCircle size={16} className="text-red-400 shrink-0" />
+                <XCircle size={16} className="text-red-600 shrink-0" />
                 <span>{solveError}</span>
               </div>
-              <button onClick={() => setSolveError(null)} className="text-red-400 hover:text-white">
+              <button onClick={() => setSolveError(null)} className="text-red-600">
                 <X size={14} />
               </button>
             </div>
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 1: 3-CARD EXPAND / SHRINK TABLE SHEET EDITOR                          */}
+          {/* TAB 1: 3-CARD TABLE SHEET EDITOR                                          */}
           {/* ========================================================================= */}
           {modalTab === 'tables' && (
             <div className="space-y-4">
               
-              {/* Sheet Switcher Quick Bar */}
+              {/* Sheet Switcher */}
               <div className="flex items-center justify-between pb-1">
                 <div className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="text-[#869394] uppercase tracking-wider text-[10px]">Active Sheet:</span>
+                  <span className="text-[#7A766D] uppercase tracking-wider text-[10px]">ACTIVE SHEET:</span>
                   <button
                     onClick={() => setActiveTable('buses')}
                     className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                       activeTable === 'buses'
-                        ? 'bg-[#55d8e1]/15 text-[#55d8e1] border border-[#55d8e1]/40 font-bold'
-                        : 'text-[#bbc9ca] hover:text-white bg-[#1b1b1e] border border-[#2D333B]'
+                        ? 'bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5] font-bold'
+                        : 'text-[#5C5950] hover:text-[#1C1B18] bg-[#ECE8DF] border border-[#DDD8CD]'
                     }`}
                   >
                     <Network size={14} />
@@ -716,19 +606,19 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                     onClick={() => setActiveTable('gens')}
                     className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                       activeTable === 'gens'
-                        ? 'bg-[#FFD369]/15 text-[#FFD369] border border-[#FFD369]/40 font-bold'
-                        : 'text-[#bbc9ca] hover:text-white bg-[#1b1b1e] border border-[#2D333B]'
+                        ? 'bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5] font-bold'
+                        : 'text-[#5C5950] hover:text-[#1C1B18] bg-[#ECE8DF] border border-[#DDD8CD]'
                     }`}
                   >
-                    <Zap size={14} className="text-[#FFD369]" />
+                    <Zap size={14} className="text-[#A67C33]" />
                     <span>Generators ({generators.length})</span>
                   </button>
                   <button
                     onClick={() => setActiveTable('branches')}
                     className={`px-3 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
                       activeTable === 'branches'
-                        ? 'bg-[#00adb5]/15 text-[#00adb5] border border-[#00adb5]/40 font-bold'
-                        : 'text-[#bbc9ca] hover:text-white bg-[#1b1b1e] border border-[#2D333B]'
+                        ? 'bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5] font-bold'
+                        : 'text-[#5C5950] hover:text-[#1C1B18] bg-[#ECE8DF] border border-[#DDD8CD]'
                     }`}
                   >
                     <Sliders size={14} />
@@ -740,10 +630,9 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                   onClick={() => setActiveTable(activeTable === 'none' ? 'buses' : 'none')}
                   className={`text-xs px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 ${
                     activeTable === 'none'
-                      ? 'bg-[#2a2a2d] border-[#55d8e1]/30 text-[#55d8e1]'
-                      : 'bg-[#1b1b1e] border-[#2D333B] text-[#bbc9ca] hover:text-white'
+                      ? 'bg-[#E3ECE6] border-[#A2BEB5] text-[#244B43]'
+                      : 'bg-[#ECE8DF] border-[#DDD8CD] text-[#5C5950] hover:text-[#1C1B18]'
                   }`}
-                  title="Toggle 3-Way Equal Overview"
                 >
                   <Columns size={13} />
                   <span>{activeTable === 'none' ? 'Expanded View' : '3-Card Overview'}</span>
@@ -753,32 +642,27 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
               {/* Dynamic 3-Card Container */}
               <div className="flex flex-col lg:flex-row gap-4 items-stretch min-h-[440px]">
                 
-                {/* ------------------------------------------------------------- */}
-                {/* CARD 1: BUSES MATRIX                                          */}
-                {/* ------------------------------------------------------------- */}
+                {/* CARD 1: BUSES MATRIX */}
                 <div
                   onClick={() => {
                     if (activeTable !== 'buses') setActiveTable('buses');
                   }}
                   className={`rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden ${
                     activeTable === 'buses'
-                      ? 'lg:flex-[3.5] border-[#55d8e1] bg-[#1f1f22] shadow-[0_0_20px_rgba(85,216,225,0.08)]'
+                      ? 'lg:flex-[3.5] border-[#558178] bg-[#FAF8F4] shadow-sm'
                       : activeTable === 'none'
-                      ? 'lg:flex-1 border-[#2D333B] bg-[#1f1f22] hover:border-[#55d8e1]/40 cursor-pointer'
-                      : 'lg:flex-[0.7] border-[#2D333B] bg-[#1b1b1e] hover:border-[#55d8e1]/40 hover:bg-[#1f1f22] cursor-pointer'
+                      ? 'lg:flex-1 border-[#E2DDD2] bg-[#FAF8F4] hover:border-[#558178] cursor-pointer'
+                      : 'lg:flex-[0.7] border-[#E2DDD2] bg-[#ECE7DE] hover:border-[#558178] cursor-pointer'
                   }`}
                 >
                   {(activeTable === 'buses' || activeTable === 'none') ? (
                     <div className="p-4 flex flex-col h-full">
-                      <div className="flex items-center justify-between pb-3 border-b border-[#2D333B] gap-2">
+                      <div className="flex items-center justify-between pb-3 border-b border-[#E3DFD5]">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-[#55d8e1]/10 text-[#55d8e1] border border-[#55d8e1]/30">
+                          <div className="p-1.5 rounded-lg bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5]">
                             <Network size={16} />
                           </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-[#e4e1e5]">Buses Matrix</h3>
-                            <p className="text-[11px] text-[#bbc9ca]">Bus Types: Slack (3), PV Gen (2), PQ Load (1)</p>
-                          </div>
+                          <h3 className="text-sm font-bold text-[#1C1B18]">Buses Matrix</h3>
                         </div>
 
                         <button
@@ -786,7 +670,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                             e.stopPropagation();
                             handleAddBus();
                           }}
-                          className="bg-[#55d8e1] text-[#003739] text-xs px-2.5 py-1 rounded-lg font-bold hover:bg-[#55d8e1]/90 transition-all flex items-center gap-1 shadow-sm"
+                          className="bg-[#244B43] hover:bg-[#1B3B34] text-[#FAF8F4] text-xs px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 shadow-sm"
                         >
                           <Plus size={13} />
                           <span>Add Bus</span>
@@ -796,7 +680,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                       <div className="flex-1 overflow-x-auto overflow-y-auto mt-3 max-h-[360px]">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-[#131316] text-[#869394] font-mono border-b border-[#2D333B] text-[11px] sticky top-0 z-10">
+                            <tr className="bg-[#ECE8DF] text-[#5C5950] font-mono border-b border-[#DDD8CD] text-[11px] sticky top-0 z-10">
                               <th className="p-2 w-16">Bus ID</th>
                               <th className="p-2 w-28">Type</th>
                               <th className="p-2">Pd (MW)</th>
@@ -807,28 +691,28 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                               <th className="p-2 w-12 text-center">Action</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#2D333B]/60 font-mono">
+                          <tbody className="divide-y divide-[#E3DFD5] font-mono">
                             {buses.map((b, idx) => (
-                              <tr key={idx} className="hover:bg-[#2a2a2d]/40 transition-colors">
+                              <tr key={idx} className="hover:bg-[#F2EFE8] transition-colors">
                                 <td className="p-1.5">
                                   <input
                                     type="number"
                                     value={b.id}
                                     onChange={(e) => handleUpdateBus(idx, 'id', Number(e.target.value))}
-                                    className="w-14 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#55d8e1] font-bold text-center focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#244B43] font-bold text-center focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5 font-sans">
                                   <select
                                     value={String(b.type).toLowerCase()}
                                     onChange={(e) => handleUpdateBus(idx, 'type', e.target.value)}
-                                    className={`w-24 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-xs font-semibold focus:border-[#55d8e1] focus:outline-none cursor-pointer ${
-                                      b.type === 'slack' ? 'text-[#55d8e1]' : b.type === 'pv' ? 'text-[#FFD369]' : 'text-[#e4e1e5]'
+                                    className={`w-24 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-xs font-semibold focus:border-[#244B43] focus:outline-none cursor-pointer ${
+                                      b.type === 'slack' ? 'text-[#244B43] font-bold' : b.type === 'pv' ? 'text-[#A67C33] font-bold' : 'text-[#1C1B18]'
                                     }`}
                                   >
-                                    <option value="slack">Slack (Ref)</option>
-                                    <option value="pv">PV (Gen)</option>
-                                    <option value="pq">PQ (Load)</option>
+                                    <option value="slack">Slack</option>
+                                    <option value="pv">PV</option>
+                                    <option value="pq">PQ</option>
                                   </select>
                                 </td>
                                 <td className="p-1.5">
@@ -837,7 +721,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="any"
                                     value={b.pd}
                                     onChange={(e) => handleUpdateBus(idx, 'pd', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-emerald-400 focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-20 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#1C1B18] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -846,7 +730,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="any"
                                     value={b.qd}
                                     onChange={(e) => handleUpdateBus(idx, 'qd', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-emerald-400/80 focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-20 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -855,7 +739,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="any"
                                     value={b.base_kv}
                                     onChange={(e) => handleUpdateBus(idx, 'base_kv', Number(e.target.value))}
-                                    className="w-18 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#e4e1e5] focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -864,7 +748,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="0.01"
                                     value={b.vm}
                                     onChange={(e) => handleUpdateBus(idx, 'vm', Number(e.target.value))}
-                                    className="w-18 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#55d8e1] focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#244B43] font-semibold focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -873,20 +757,15 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="any"
                                     value={b.va}
                                     onChange={(e) => handleUpdateBus(idx, 'va', Number(e.target.value))}
-                                    className="w-16 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#bbc9ca] focus:border-[#55d8e1] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5 text-center">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteBus(idx);
-                                    }}
-                                    disabled={buses.length <= 1}
-                                    className="p-1 rounded text-[#869394] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                                    title="Delete Bus"
+                                    onClick={() => handleDeleteBus(idx)}
+                                    className="p-1 text-[#9E9A90] hover:text-red-600 rounded transition-colors"
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={13} />
                                   </button>
                                 </td>
                               </tr>
@@ -897,57 +776,51 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                     </div>
                   ) : (
                     <div className="p-4 flex flex-col items-center justify-between h-full text-center">
-                      <div className="flex flex-col items-center gap-2 mt-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#55d8e1]/10 text-[#55d8e1] border border-[#55d8e1]/30 flex items-center justify-center">
+                      <div className="mt-8 flex flex-col items-center gap-2">
+                        <div className="p-2 rounded-xl bg-[#E3ECE6] text-[#244B43]">
                           <Network size={20} />
                         </div>
-                        <h4 className="text-xs font-bold text-[#e4e1e5]">Buses</h4>
-                        <span className="font-mono text-xs text-[#55d8e1] bg-[#55d8e1]/10 px-2 py-0.5 rounded border border-[#55d8e1]/20">
-                          {buses.length} Buses
+                        <h4 className="text-xs font-bold text-[#1C1B18]">Buses</h4>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#DDD8CE] text-[#5C5950]">
+                          {buses.length}
                         </span>
                       </div>
-                      <button className="w-full py-1.5 rounded-lg bg-[#2a2a2d] border border-[#2D333B] text-[11px] font-semibold text-[#55d8e1] hover:bg-[#55d8e1] hover:text-[#003739] transition-all flex items-center justify-center gap-1">
-                        <span>Expand</span>
-                        <ArrowRight size={12} />
-                      </button>
+                      <span className="text-xs font-bold text-[#244B43] mb-4 flex items-center gap-1 hover:underline">
+                        Expand <ArrowRight size={13} />
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* ------------------------------------------------------------- */}
-                {/* CARD 2: GENERATORS MATRIX                                     */}
-                {/* ------------------------------------------------------------- */}
+                {/* CARD 2: GENERATORS MATRIX */}
                 <div
                   onClick={() => {
                     if (activeTable !== 'gens') setActiveTable('gens');
                   }}
                   className={`rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden ${
                     activeTable === 'gens'
-                      ? 'lg:flex-[3.5] border-[#FFD369] bg-[#1f1f22] shadow-[0_0_20px_rgba(255,211,105,0.08)]'
+                      ? 'lg:flex-[3.5] border-[#558178] bg-[#FAF8F4] shadow-sm'
                       : activeTable === 'none'
-                      ? 'lg:flex-1 border-[#2D333B] bg-[#1f1f22] hover:border-[#FFD369]/40 cursor-pointer'
-                      : 'lg:flex-[0.7] border-[#2D333B] bg-[#1b1b1e] hover:border-[#FFD369]/40 hover:bg-[#1f1f22] cursor-pointer'
+                      ? 'lg:flex-1 border-[#E2DDD2] bg-[#FAF8F4] hover:border-[#558178] cursor-pointer'
+                      : 'lg:flex-[0.7] border-[#E2DDD2] bg-[#ECE7DE] hover:border-[#558178] cursor-pointer'
                   }`}
                 >
                   {(activeTable === 'gens' || activeTable === 'none') ? (
                     <div className="p-4 flex flex-col h-full">
-                      <div className="flex items-center justify-between pb-3 border-b border-[#2D333B] gap-2">
+                      <div className="flex items-center justify-between pb-3 border-b border-[#E3DFD5]">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-[#FFD369]/10 text-[#FFD369] border border-[#FFD369]/30">
-                            <Zap size={16} />
+                          <div className="p-1.5 rounded-lg bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5]">
+                            <Zap size={16} className="text-[#A67C33]" />
                           </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-[#e4e1e5]">Generators Matrix</h3>
-                            <p className="text-[11px] text-[#bbc9ca]">Real (Pg) & Reactive (Qg) Generation Limits</p>
-                          </div>
+                          <h3 className="text-sm font-bold text-[#1C1B18]">Generators</h3>
                         </div>
 
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleAddGenerator();
+                            handleAddGen();
                           }}
-                          className="bg-[#FFD369] text-[#1f1f22] text-xs px-2.5 py-1 rounded-lg font-bold hover:bg-[#FFD369]/90 transition-all flex items-center gap-1 shadow-sm"
+                          className="bg-[#244B43] hover:bg-[#1B3B34] text-[#FAF8F4] text-xs px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 shadow-sm"
                         >
                           <Plus size={13} />
                           <span>Add Gen</span>
@@ -957,36 +830,38 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                       <div className="flex-1 overflow-x-auto overflow-y-auto mt-3 max-h-[360px]">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-[#131316] text-[#869394] font-mono border-b border-[#2D333B] text-[11px] sticky top-0 z-10">
-                              <th className="p-2 w-16">Gen ID</th>
-                              <th className="p-2 w-20">Bus ID</th>
+                            <tr className="bg-[#ECE8DF] text-[#5C5950] font-mono border-b border-[#DDD8CD] text-[11px] sticky top-0 z-10">
+                              <th className="p-2 w-14">Gen ID</th>
+                              <th className="p-2 w-16">Bus ID</th>
                               <th className="p-2">Pg (MW)</th>
                               <th className="p-2">Qg (MVAr)</th>
                               <th className="p-2">Vg (p.u.)</th>
                               <th className="p-2">Pmax</th>
+                              <th className="p-2">Pmin</th>
                               <th className="p-2">Qmax</th>
+                              <th className="p-2">Qmin</th>
                               <th className="p-2 w-12 text-center">Action</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#2D333B]/60 font-mono">
+                          <tbody className="divide-y divide-[#E3DFD5] font-mono">
                             {generators.map((g, idx) => (
-                              <tr key={idx} className="hover:bg-[#2a2a2d]/40 transition-colors">
+                              <tr key={idx} className="hover:bg-[#F2EFE8] transition-colors">
                                 <td className="p-1.5">
                                   <input
                                     type="text"
                                     value={g.gen_id}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'gen_id', e.target.value)}
-                                    className="w-16 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#FFD369] font-bold text-center focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'gen_id', e.target.value)}
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#244B43] font-bold text-center focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
                                   <select
                                     value={g.bus_id}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'bus_id', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-xs font-bold text-[#55d8e1] focus:border-[#FFD369] focus:outline-none cursor-pointer"
+                                    onChange={(e) => handleUpdateGen(idx, 'bus_id', Number(e.target.value))}
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-xs font-semibold focus:border-[#244B43] focus:outline-none cursor-pointer"
                                   >
                                     {buses.map(b => (
-                                      <option key={b.id} value={b.id}>Bus {b.id} ({b.type})</option>
+                                      <option key={b.id} value={b.id}>Bus {b.id}</option>
                                     ))}
                                   </select>
                                 </td>
@@ -995,8 +870,8 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     type="number"
                                     step="any"
                                     value={g.pg}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'pg', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#55d8e1] focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'pg', Number(e.target.value))}
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#A67C33] font-bold focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1004,8 +879,8 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     type="number"
                                     step="any"
                                     value={g.qg}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'qg', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#55d8e1]/80 focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'qg', Number(e.target.value))}
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1013,8 +888,8 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     type="number"
                                     step="0.01"
                                     value={g.vg}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'vg', Number(e.target.value))}
-                                    className="w-18 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#FFD369] focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'vg', Number(e.target.value))}
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#244B43] font-semibold focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1022,8 +897,17 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     type="number"
                                     step="any"
                                     value={g.pmax}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'pmax', Number(e.target.value))}
-                                    className="w-18 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#bbc9ca] focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'pmax', Number(e.target.value))}
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#1C1B18] focus:border-[#244B43] focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-1.5">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={g.pmin}
+                                    onChange={(e) => handleUpdateGen(idx, 'pmin', Number(e.target.value))}
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1031,20 +915,25 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     type="number"
                                     step="any"
                                     value={g.qmax}
-                                    onChange={(e) => handleUpdateGenerator(idx, 'qmax', Number(e.target.value))}
-                                    className="w-18 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#bbc9ca] focus:border-[#FFD369] focus:outline-none"
+                                    onChange={(e) => handleUpdateGen(idx, 'qmax', Number(e.target.value))}
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-1.5">
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    value={g.qmin}
+                                    onChange={(e) => handleUpdateGen(idx, 'qmin', Number(e.target.value))}
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5 text-center">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteGenerator(idx);
-                                    }}
-                                    className="p-1 rounded text-[#869394] hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                    title="Delete Generator"
+                                    onClick={() => handleDeleteGen(idx)}
+                                    className="p-1 text-[#9E9A90] hover:text-red-600 rounded transition-colors"
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={13} />
                                   </button>
                                 </td>
                               </tr>
@@ -1055,49 +944,43 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                     </div>
                   ) : (
                     <div className="p-4 flex flex-col items-center justify-between h-full text-center">
-                      <div className="flex flex-col items-center gap-2 mt-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#FFD369]/10 text-[#FFD369] border border-[#FFD369]/30 flex items-center justify-center">
-                          <Zap size={20} />
+                      <div className="mt-8 flex flex-col items-center gap-2">
+                        <div className="p-2 rounded-xl bg-[#E3ECE6] text-[#244B43]">
+                          <Zap size={20} className="text-[#A67C33]" />
                         </div>
-                        <h4 className="text-xs font-bold text-[#e4e1e5]">Generators</h4>
-                        <span className="font-mono text-xs text-[#FFD369] bg-[#FFD369]/10 px-2 py-0.5 rounded border border-[#FFD369]/20">
-                          {generators.length} Gens
+                        <h4 className="text-xs font-bold text-[#1C1B18]">Generators</h4>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#DDD8CE] text-[#5C5950]">
+                          {generators.length}
                         </span>
                       </div>
-                      <button className="w-full py-1.5 rounded-lg bg-[#2a2a2d] border border-[#2D333B] text-[11px] font-semibold text-[#FFD369] hover:bg-[#FFD369] hover:text-[#1f1f22] transition-all flex items-center justify-center gap-1">
-                        <span>Expand</span>
-                        <ArrowRight size={12} />
-                      </button>
+                      <span className="text-xs font-bold text-[#244B43] mb-4 flex items-center gap-1 hover:underline">
+                        Expand <ArrowRight size={13} />
+                      </span>
                     </div>
                   )}
                 </div>
 
-                {/* ------------------------------------------------------------- */}
-                {/* CARD 3: BRANCHES MATRIX                                       */}
-                {/* ------------------------------------------------------------- */}
+                {/* CARD 3: BRANCHES MATRIX */}
                 <div
                   onClick={() => {
                     if (activeTable !== 'branches') setActiveTable('branches');
                   }}
                   className={`rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden ${
                     activeTable === 'branches'
-                      ? 'lg:flex-[3.5] border-[#00adb5] bg-[#1f1f22] shadow-[0_0_20px_rgba(0,173,181,0.08)]'
+                      ? 'lg:flex-[3.5] border-[#558178] bg-[#FAF8F4] shadow-sm'
                       : activeTable === 'none'
-                      ? 'lg:flex-1 border-[#2D333B] bg-[#1f1f22] hover:border-[#00adb5]/40 cursor-pointer'
-                      : 'lg:flex-[0.7] border-[#2D333B] bg-[#1b1b1e] hover:border-[#00adb5]/40 hover:bg-[#1f1f22] cursor-pointer'
+                      ? 'lg:flex-1 border-[#E2DDD2] bg-[#FAF8F4] hover:border-[#558178] cursor-pointer'
+                      : 'lg:flex-[0.7] border-[#E2DDD2] bg-[#ECE7DE] hover:border-[#558178] cursor-pointer'
                   }`}
                 >
                   {(activeTable === 'branches' || activeTable === 'none') ? (
                     <div className="p-4 flex flex-col h-full">
-                      <div className="flex items-center justify-between pb-3 border-b border-[#2D333B] gap-2">
+                      <div className="flex items-center justify-between pb-3 border-b border-[#E3DFD5]">
                         <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30">
+                          <div className="p-1.5 rounded-lg bg-[#E3ECE6] text-[#244B43] border border-[#A2BEB5]">
                             <Sliders size={16} />
                           </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-[#e4e1e5]">Branches Matrix</h3>
-                            <p className="text-[11px] text-[#bbc9ca]">Line Impedances (R, X, B) & MVA Thermal Limits</p>
-                          </div>
+                          <h3 className="text-sm font-bold text-[#1C1B18]">Branches</h3>
                         </div>
 
                         <button
@@ -1105,35 +988,35 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                             e.stopPropagation();
                             handleAddBranch();
                           }}
-                          className="bg-[#00adb5] text-[#002022] text-xs px-2.5 py-1 rounded-lg font-bold hover:bg-[#00adb5]/90 transition-all flex items-center gap-1 shadow-sm"
+                          className="bg-[#244B43] hover:bg-[#1B3B34] text-[#FAF8F4] text-xs px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 shadow-sm"
                         >
                           <Plus size={13} />
-                          <span>Add Line</span>
+                          <span>Add Branch</span>
                         </button>
                       </div>
 
                       <div className="flex-1 overflow-x-auto overflow-y-auto mt-3 max-h-[360px]">
                         <table className="w-full text-left text-xs border-collapse">
                           <thead>
-                            <tr className="bg-[#131316] text-[#869394] font-mono border-b border-[#2D333B] text-[11px] sticky top-0 z-10">
-                              <th className="p-2 w-20">From Bus</th>
-                              <th className="p-2 w-20">To Bus</th>
+                            <tr className="bg-[#ECE8DF] text-[#5C5950] font-mono border-b border-[#DDD8CD] text-[11px] sticky top-0 z-10">
+                              <th className="p-2 w-16">From Bus</th>
+                              <th className="p-2 w-16">To Bus</th>
                               <th className="p-2">R (p.u.)</th>
                               <th className="p-2">X (p.u.)</th>
                               <th className="p-2">B (p.u.)</th>
-                              <th className="p-2">Rate A (MVA)</th>
+                              <th className="p-2">Rate (MVA)</th>
                               <th className="p-2">Tap</th>
                               <th className="p-2 w-12 text-center">Action</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#2D333B]/60 font-mono">
+                          <tbody className="divide-y divide-[#E3DFD5] font-mono">
                             {branches.map((br, idx) => (
-                              <tr key={idx} className="hover:bg-[#2a2a2d]/40 transition-colors">
+                              <tr key={idx} className="hover:bg-[#F2EFE8] transition-colors">
                                 <td className="p-1.5">
                                   <select
                                     value={br.from_bus}
                                     onChange={(e) => handleUpdateBranch(idx, 'from_bus', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-xs font-bold text-[#55d8e1] focus:border-[#00adb5] focus:outline-none cursor-pointer"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-xs font-semibold focus:border-[#244B43] focus:outline-none cursor-pointer"
                                   >
                                     {buses.map(b => (
                                       <option key={b.id} value={b.id}>Bus {b.id}</option>
@@ -1144,7 +1027,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                   <select
                                     value={br.to_bus}
                                     onChange={(e) => handleUpdateBranch(idx, 'to_bus', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-xs font-bold text-[#55d8e1] focus:border-[#00adb5] focus:outline-none cursor-pointer"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-xs font-semibold focus:border-[#244B43] focus:outline-none cursor-pointer"
                                   >
                                     {buses.map(b => (
                                       <option key={b.id} value={b.id}>Bus {b.id}</option>
@@ -1157,7 +1040,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="0.001"
                                     value={br.r}
                                     onChange={(e) => handleUpdateBranch(idx, 'r', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#e4e1e5] focus:border-[#00adb5] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1166,7 +1049,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="0.001"
                                     value={br.x}
                                     onChange={(e) => handleUpdateBranch(idx, 'x', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#00adb5] font-bold focus:border-[#00adb5] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#244B43] font-bold focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1175,7 +1058,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="0.001"
                                     value={br.b}
                                     onChange={(e) => handleUpdateBranch(idx, 'b', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#bbc9ca] focus:border-[#00adb5] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1184,7 +1067,7 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="any"
                                     value={br.rate_a}
                                     onChange={(e) => handleUpdateBranch(idx, 'rate_a', Number(e.target.value))}
-                                    className="w-20 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#FFD369] font-bold focus:border-[#00adb5] focus:outline-none"
+                                    className="w-16 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#1C1B18] font-semibold focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5">
@@ -1193,20 +1076,15 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                                     step="0.01"
                                     value={br.tap}
                                     onChange={(e) => handleUpdateBranch(idx, 'tap', Number(e.target.value))}
-                                    className="w-16 bg-[#131316] border border-[#2D333B] rounded px-1.5 py-1 text-[#bbc9ca] focus:border-[#00adb5] focus:outline-none"
+                                    className="w-14 bg-[#FAF8F4] border border-[#DDD8CD] rounded px-1.5 py-1 text-[#5C5950] focus:border-[#244B43] focus:outline-none"
                                   />
                                 </td>
                                 <td className="p-1.5 text-center">
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteBranch(idx);
-                                    }}
-                                    disabled={branches.length <= 1}
-                                    className="p-1 rounded text-[#869394] hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                                    title="Delete Branch"
+                                    onClick={() => handleDeleteBranch(idx)}
+                                    className="p-1 text-[#9E9A90] hover:text-red-600 rounded transition-colors"
                                   >
-                                    <Trash2 size={14} />
+                                    <Trash2 size={13} />
                                   </button>
                                 </td>
                               </tr>
@@ -1217,40 +1095,36 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                     </div>
                   ) : (
                     <div className="p-4 flex flex-col items-center justify-between h-full text-center">
-                      <div className="flex flex-col items-center gap-2 mt-4">
-                        <div className="w-10 h-10 rounded-xl bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 flex items-center justify-center">
+                      <div className="mt-8 flex flex-col items-center gap-2">
+                        <div className="p-2 rounded-xl bg-[#E3ECE6] text-[#244B43]">
                           <Sliders size={20} />
                         </div>
-                        <h4 className="text-xs font-bold text-[#e4e1e5]">Branches</h4>
-                        <span className="font-mono text-xs text-[#00adb5] bg-[#00adb5]/10 px-2 py-0.5 rounded border border-[#00adb5]/20">
-                          {branches.length} Lines
+                        <h4 className="text-xs font-bold text-[#1C1B18]">Branches</h4>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#DDD8CE] text-[#5C5950]">
+                          {branches.length}
                         </span>
                       </div>
-                      <button className="w-full py-1.5 rounded-lg bg-[#2a2a2d] border border-[#2D333B] text-[11px] font-semibold text-[#00adb5] hover:bg-[#00adb5] hover:text-[#002022] transition-all flex items-center justify-center gap-1">
-                        <span>Expand</span>
-                        <ArrowRight size={12} />
-                      </button>
+                      <span className="text-xs font-bold text-[#244B43] mb-4 flex items-center gap-1 hover:underline">
+                        Expand <ArrowRight size={13} />
+                      </span>
                     </div>
                   )}
                 </div>
 
               </div>
-
             </div>
           )}
 
           {/* ========================================================================= */}
-          {/* TAB 2: FILE UPLOAD & COLUMN GUIDANCE SPECIFICATION                         */}
+          {/* TAB 2: FILE IMPORT & COLUMN SPECIFICATION GUIDE                           */}
           {/* ========================================================================= */}
           {modalTab === 'upload' && (
             <div className="space-y-5">
               
-              {/* Drag & Drop Area */}
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
+              {/* Dropzone */}
+              <div 
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-2xl border-2 border-dashed border-[#3c494a] bg-[#1b1b1e] hover:border-[#55d8e1] hover:bg-[#1f1f22] p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all group shadow-inner"
+                className="border-2 border-dashed border-[#D5CFBF] hover:border-[#558178] bg-[#F4F1EA] hover:bg-[#EAF0EC] rounded-2xl p-6 text-center cursor-pointer transition-all"
               >
                 <input
                   ref={fileInputRef}
@@ -1259,291 +1133,142 @@ export default function CustomNetworkModal({ isOpen, onClose, onLaunchCustomGrid
                   onChange={handleFileUpload}
                   className="hidden"
                 />
-                <div className="w-16 h-16 rounded-2xl bg-[#131316] border border-[#2D333B] flex items-center justify-center text-[#55d8e1] group-hover:scale-110 transition-transform mb-3 shadow-md">
-                  <Upload size={30} />
+                <div className="w-12 h-12 mx-auto rounded-xl bg-[#E3ECE6] text-[#244B43] flex items-center justify-center mb-2">
+                  <Upload size={22} />
                 </div>
-                <h3 className="text-base font-bold text-[#e4e1e5]">
-                  Drag & Drop JSON or CSV Grid Data File
+                <h3 className="text-sm font-bold text-[#1C1B18]">
+                  Upload Network Dataset
                 </h3>
-                <p className="text-xs text-[#bbc9ca] mt-1 max-w-md">
-                  Upload complete network JSON or individual table CSV files (<code className="text-[#55d8e1]">buses.csv</code>, <code className="text-[#FFD369]">generators.csv</code>, <code className="text-[#00adb5]">branches.csv</code>).
+                <p className="text-xs text-[#7A766D] mt-0.5">
+                  Click or drag and drop your .json or .csv files to import.
                 </p>
-                <div className="flex items-center gap-3 mt-4">
-                  <button className="bg-[#2a2a2d] border border-[#2D333B] text-[#55d8e1] text-xs px-4 py-2 rounded-xl font-semibold hover:bg-[#55d8e1] hover:text-[#003739] transition-all flex items-center gap-2">
-                    <FolderOpen size={15} />
-                    <span>Browse Files from Disk</span>
-                  </button>
-                </div>
               </div>
 
-              {/* Comprehensive Column Guidance Hints Panel */}
-              <div className="p-5 rounded-2xl bg-[#1b1b1e] border border-[#2D333B] space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#2D333B]">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#e4e1e5] flex items-center gap-2">
-                      <HelpCircle size={16} className="text-[#55d8e1]" />
-                      File Column Naming & Ordering Guidance
-                    </h3>
-                    <p className="text-xs text-[#bbc9ca]">
-                      Exact column headers and allowable name aliases supported by the auto-parser
-                    </p>
+              {/* COLUMN SPECIFICATIONS REFERENCE CARDS */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-[#7A766D]">
+                  Expected Column Specifications & Templates
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  
+                  {/* BUSES SPEC */}
+                  <div className="p-3.5 rounded-xl bg-[#ECE8DF] border border-[#DDD8CD] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-[#1C1B18] flex items-center gap-1.5">
+                          <Network size={14} className="text-[#244B43]" />
+                          <span>buses.csv</span>
+                        </span>
+                        <button 
+                          onClick={() => handleDownloadSampleCsv('buses')}
+                          className="p-1 text-[#244B43] hover:bg-[#E3ECE6] rounded transition-colors"
+                          title="Download Template"
+                        >
+                          <Download size={14} />
+                        </button>
+                      </div>
+                      <div className="text-[11px] font-mono bg-[#FAF8F4] border border-[#DDD8CD] p-2 rounded text-[#244B43] leading-relaxed select-all">
+                        id, type, pd, qd, base_kv, vm, va, vmin, vmax
+                      </div>
+                      <p className="text-[10px] text-[#7A766D] mt-1.5">
+                        Types: <code className="font-mono">slack</code> (ref), <code className="font-mono">pv</code> (gen), <code className="font-mono">pq</code> (load).
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center bg-[#131316] border border-[#2D333B] p-1 rounded-xl gap-1 text-xs">
-                    <button
-                      onClick={() => setGuideTab('buses')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                        guideTab === 'buses' ? 'bg-[#55d8e1]/20 text-[#55d8e1] border border-[#55d8e1]/30 font-bold' : 'text-[#bbc9ca] hover:text-white'
-                      }`}
-                    >
-                      Buses CSV
-                    </button>
-                    <button
-                      onClick={() => setGuideTab('gens')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                        guideTab === 'gens' ? 'bg-[#FFD369]/20 text-[#FFD369] border border-[#FFD369]/30 font-bold' : 'text-[#bbc9ca] hover:text-white'
-                      }`}
-                    >
-                      Gens CSV
-                    </button>
-                    <button
-                      onClick={() => setGuideTab('branches')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                        guideTab === 'branches' ? 'bg-[#00adb5]/20 text-[#00adb5] border border-[#00adb5]/30 font-bold' : 'text-[#bbc9ca] hover:text-white'
-                      }`}
-                    >
-                      Branches CSV
-                    </button>
-                    <button
-                      onClick={() => setGuideTab('json')}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                        guideTab === 'json' ? 'bg-[#2a2a2d] text-white border border-[#2D333B] font-bold' : 'text-[#bbc9ca] hover:text-white'
-                      }`}
-                    >
-                      Unified JSON
-                    </button>
+                  {/* GENERATORS SPEC */}
+                  <div className="p-3.5 rounded-xl bg-[#ECE8DF] border border-[#DDD8CD] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-[#1C1B18] flex items-center gap-1.5">
+                          <Zap size={14} className="text-[#A67C33]" />
+                          <span>generators.csv</span>
+                        </span>
+                        <button 
+                          onClick={() => handleDownloadSampleCsv('gens')}
+                          className="p-1 text-[#244B43] hover:bg-[#E3ECE6] rounded transition-colors"
+                          title="Download Template"
+                        >
+                          <Download size={14} />
+                        </button>
+                      </div>
+                      <div className="text-[11px] font-mono bg-[#FAF8F4] border border-[#DDD8CD] p-2 rounded text-[#244B43] leading-relaxed select-all">
+                        gen_id, bus_id, pg, qg, vg, pmax, pmin, qmax, qmin, status
+                      </div>
+                      <p className="text-[10px] text-[#7A766D] mt-1.5">
+                        Voltages in p.u., powers in MW / MVAr.
+                      </p>
+                    </div>
                   </div>
+
+                  {/* BRANCHES SPEC */}
+                  <div className="p-3.5 rounded-xl bg-[#ECE8DF] border border-[#DDD8CD] flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-bold text-[#1C1B18] flex items-center gap-1.5">
+                          <Sliders size={14} className="text-[#244B43]" />
+                          <span>branches.csv</span>
+                        </span>
+                        <button 
+                          onClick={() => handleDownloadSampleCsv('branches')}
+                          className="p-1 text-[#244B43] hover:bg-[#E3ECE6] rounded transition-colors"
+                          title="Download Template"
+                        >
+                          <Download size={14} />
+                        </button>
+                      </div>
+                      <div className="text-[11px] font-mono bg-[#FAF8F4] border border-[#DDD8CD] p-2 rounded text-[#244B43] leading-relaxed select-all">
+                        from_bus, to_bus, r, x, b, rate_a, tap, status
+                      </div>
+                      <p className="text-[10px] text-[#7A766D] mt-1.5">
+                        Line impedances in p.u., ratings in MVA.
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
-
-                {guideTab === 'buses' && (
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-[#55d8e1]">Expected CSV Columns for Buses:</div>
-                      <button
-                        onClick={() => handleDownloadSampleCsv('buses')}
-                        className="text-xs text-[#55d8e1] hover:underline flex items-center gap-1 font-mono"
-                      >
-                        <Download size={13} />
-                        <span>Download sample buses.csv</span>
-                      </button>
-                    </div>
-                    <div className="bg-[#131316] p-3 rounded-xl border border-[#2D333B] font-mono text-[11px] text-[#e4e1e5] overflow-x-auto">
-                      <div className="text-[#869394] mb-1"># Recommended CSV Header Order:</div>
-                      <div className="text-[#55d8e1] font-bold">id, type, pd_mw, qd_mvar, base_kv, vm, va, vmin, vmax</div>
-                      <div className="text-[#bbc9ca] mt-2">1, slack, 0.0, 0.0, 230.0, 1.05, 0.0, 0.90, 1.10</div>
-                      <div className="text-[#bbc9ca]">2, pv, 20.0, 10.0, 230.0, 1.03, 0.0, 0.90, 1.10</div>
-                      <div className="text-[#bbc9ca]">3, pq, 45.0, 15.0, 230.0, 1.00, 0.0, 0.90, 1.10</div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] text-[#bbc9ca]">
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">id:</strong> Bus number (1, 2, 3...). Aliases: <code className="text-[#55d8e1]">bus_id</code>, <code className="text-[#55d8e1]">bus</code>.
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">type:</strong> <code className="text-[#55d8e1]">slack</code> (3), <code className="text-[#FFD369]">pv</code> (2), or <code className="text-[#e4e1e5]">pq</code> (1).
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">pd_mw & qd_mvar:</strong> Real (MW) & Reactive (MVAr) load demand.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {guideTab === 'gens' && (
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-[#FFD369]">Expected CSV Columns for Generators:</div>
-                      <button
-                        onClick={() => handleDownloadSampleCsv('gens')}
-                        className="text-xs text-[#FFD369] hover:underline flex items-center gap-1 font-mono"
-                      >
-                        <Download size={13} />
-                        <span>Download sample generators.csv</span>
-                      </button>
-                    </div>
-                    <div className="bg-[#131316] p-3 rounded-xl border border-[#2D333B] font-mono text-[11px] text-[#e4e1e5] overflow-x-auto">
-                      <div className="text-[#869394] mb-1"># Recommended CSV Header Order:</div>
-                      <div className="text-[#FFD369] font-bold">gen_id, bus_id, pg_mw, qg_mvar, vg, pmax, pmin, qmax, qmin, status</div>
-                      <div className="text-[#bbc9ca]">G1, 1, 0.0, 0.0, 1.05, 200.0, 0.0, 100.0, -100.0, 1</div>
-                      <div className="text-[#bbc9ca]">G2, 2, 40.0, 0.0, 1.03, 100.0, 0.0, 80.0, -50.0, 1</div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] text-[#bbc9ca]">
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">bus_id:</strong> Must match a Bus ID in Buses matrix.
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">vg:</strong> Generator voltage setpoint in p.u. (typically 1.00 - 1.05).
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">pmax & qmax:</strong> Generation active and reactive capacity bounds.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {guideTab === 'branches' && (
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-[#00adb5]">Expected CSV Columns for Branches:</div>
-                      <button
-                        onClick={() => handleDownloadSampleCsv('branches')}
-                        className="text-xs text-[#00adb5] hover:underline flex items-center gap-1 font-mono"
-                      >
-                        <Download size={13} />
-                        <span>Download sample branches.csv</span>
-                      </button>
-                    </div>
-                    <div className="bg-[#131316] p-3 rounded-xl border border-[#2D333B] font-mono text-[11px] text-[#e4e1e5] overflow-x-auto">
-                      <div className="text-[#869394] mb-1"># Recommended CSV Header Order:</div>
-                      <div className="text-[#00adb5] font-bold">from_bus, to_bus, r, x, b, rate_a, tap, status</div>
-                      <div className="text-[#bbc9ca]">1, 2, 0.02, 0.06, 0.03, 100.0, 1.0, 1</div>
-                      <div className="text-[#bbc9ca]">1, 3, 0.08, 0.24, 0.025, 100.0, 1.0, 1</div>
-                      <div className="text-[#bbc9ca]">2, 3, 0.06, 0.18, 0.02, 100.0, 1.0, 1</div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] text-[#bbc9ca]">
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">from_bus & to_bus:</strong> Endpoints of the line (must exist).
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">r & x:</strong> Resistance and Reactance in p.u. (<code className="text-[#00adb5]">x &gt; 0</code>).
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#131316] border border-[#2D333B]">
-                        <strong className="text-[#e4e1e5] block">rate_a:</strong> Continuous thermal transmission rating in MVA.
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {guideTab === 'json' && (
-                  <div className="space-y-3 text-xs">
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold text-[#55d8e1]">Unified JSON Specification Schema:</div>
-                      <button
-                        onClick={() => handleDownloadSampleCsv('json')}
-                        className="text-xs text-[#55d8e1] hover:underline flex items-center gap-1 font-mono"
-                      >
-                        <Download size={13} />
-                        <span>Download custom_grid.json</span>
-                      </button>
-                    </div>
-                    <pre className="bg-[#131316] p-3 rounded-xl border border-[#2D333B] font-mono text-[11px] text-[#bbc9ca] max-h-48 overflow-y-auto">
-{`{
-  "name": "${gridName}",
-  "base_mva": ${baseMva},
-  "buses": [
-    { "id": 1, "type": "slack", "pd": 0, "qd": 0, "base_kv": 230, "vm": 1.05 },
-    { "id": 2, "type": "pv", "pd": 20, "qd": 10, "base_kv": 230, "vm": 1.03 },
-    { "id": 3, "type": "pq", "pd": 45, "qd": 15, "base_kv": 230, "vm": 1.00 }
-  ],
-  "generators": [
-    { "gen_id": "G1", "bus_id": 1, "pg": 0, "qg": 0, "vg": 1.05, "pmax": 200, "qmax": 100 },
-    { "gen_id": "G2", "bus_id": 2, "pg": 40, "qg": 0, "vg": 1.03, "pmax": 100, "qmax": 80 }
-  ],
-  "branches": [
-    { "from_bus": 1, "to_bus": 2, "r": 0.02, "x": 0.06, "b": 0.03, "rate_a": 100 },
-    { "from_bus": 1, "to_bus": 3, "r": 0.08, "x": 0.24, "b": 0.025, "rate_a": 100 },
-    { "from_bus": 2, "to_bus": 3, "r": 0.06, "x": 0.18, "b": 0.02, "rate_a": 100 }
-  ]
-}`}
-                    </pre>
-                  </div>
-                )}
               </div>
 
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* LIVE TOPOLOGY VALIDATION SUMMARY BANNER                                   */}
-          {/* ========================================================================= */}
-          <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
-            validation.isValid
-              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-300'
-              : 'bg-red-950/30 border-red-500/40 text-red-300'
-          }`}>
-            <div className="flex items-start sm:items-center gap-2.5">
-              {validation.isValid ? (
-                <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5 sm:mt-0" />
-              ) : (
-                <AlertTriangle size={18} className="text-red-400 shrink-0 mt-0.5 sm:mt-0" />
-              )}
-              <div>
-                <span className="font-bold">
-                  {validation.isValid
-                    ? `✓ Topology Verified: ${buses.length} Buses, ${generators.length} Generators, ${branches.length} Branches`
-                    : `⚠ Topology Errors (${validation.errors.length}):`}
-                </span>
-                {!validation.isValid && (
-                  <ul className="list-disc list-inside text-[11px] text-red-200 mt-1 space-y-0.5 font-mono">
-                    {validation.errors.slice(0, 3).map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                    {validation.errors.length > 3 && (
-                      <li>...and {validation.errors.length - 3} more errors</li>
-                    )}
-                  </ul>
-                )}
-                {validation.isValid && validation.warnings.length > 0 && (
-                  <div className="text-[11px] text-[#FFD369] mt-0.5">
-                    Note: {validation.warnings[0]}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 font-mono text-[11px] text-[#bbc9ca] self-end sm:self-auto shrink-0">
-              <span>Total Load:</span>
-              <strong className="text-emerald-400">
-                {buses.reduce((acc, b) => acc + (Number(b.pd) || 0), 0).toFixed(1)} MW
-              </strong>
-            </div>
-          </div>
-
         </div>
 
         {/* ========================================================================= */}
-        {/* MODAL FOOTER ACTIONS                                                      */}
+        {/* MODAL FOOTER                                                              */}
         {/* ========================================================================= */}
-        <div className="p-4 sm:p-5 border-t border-[#2D333B] bg-[#1f1f22] flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-[#869394]">
-            <span className="w-2 h-2 rounded-full bg-[#55d8e1] animate-pulse" />
-            <span>PyPOWER AC Newton-Raphson Engine</span>
+        <div className="px-6 py-3 border-t border-[#E3DFD5] bg-[#FAF8F4] flex items-center justify-between gap-3 text-xs">
+          <div>
+            {validation.isValid ? (
+              <div className="flex items-center gap-1.5 text-[#244B43] font-mono text-[11px] font-medium">
+                <CheckCircle2 size={14} />
+                <span>{buses.length} Buses · {generators.length} Generators · {branches.length} Branches · Load: {totalLoadMw.toFixed(1)} MW</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-red-600 font-medium text-xs">
+                <AlertTriangle size={14} />
+                <span>{validation.errors[0]}</span>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl bg-[#1b1b1e] border border-[#2D333B] text-xs font-semibold text-[#bbc9ca] hover:text-white hover:bg-[#2a2a2d] transition-all"
+              className="px-4 py-1.5 rounded-lg text-xs font-medium text-[#5C5950] hover:text-[#1C1B18] hover:bg-[#ECE8DF] transition-colors"
             >
               Cancel
             </button>
 
             <button
               onClick={handleSolveAndLaunch}
-              disabled={!validation.isValid || isSolving}
-              className="px-6 py-2.5 rounded-xl bg-[#55d8e1] text-[#003739] text-xs sm:text-sm font-bold hover:bg-[#55d8e1]/90 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(85,216,225,0.3)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              disabled={isSolving || !validation.isValid}
+              className="px-5 py-2 rounded-lg bg-[#244B43] hover:bg-[#1B3B34] text-[#FAF8F4] text-xs font-bold transition-all shadow flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
-              {isSolving ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin" />
-                  <span>Solving AC Power Flow...</span>
-                </>
-              ) : (
-                <>
-                  <Play size={16} className="fill-current" />
-                  <span>Solve & Launch Digital Twin</span>
-                  <ArrowRight size={16} />
-                </>
-              )}
+              <Play size={13} fill="currentColor" />
+              <span>{isSolving ? 'Solving...' : 'Solve & Launch Digital Twin'}</span>
+              <ArrowRight size={14} />
             </button>
           </div>
         </div>

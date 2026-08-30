@@ -6,9 +6,12 @@ yarn-debug.log*
 yarn-error.log*
 
 # Node dependencies & builds
-node_modules
-dist
-dist-ssr
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+.vite/
 *.local
 
 # Python virtualenv & cache

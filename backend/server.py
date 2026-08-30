@@ -216,7 +216,10 @@ def execute_ai_healing(case_id: str, req: SolveRequest):
         raise HTTPException(status_code=500, detail=f"AI Remediation failed: {str(e)}")
 
 # Mount static dist folder if built
-dist_path = os.path.abspath(os.path.join(backend_dir, "..", "dist"))
+dist_path = os.path.abspath(os.path.join(backend_dir, "..", "frontend", "dist"))
+if not os.path.exists(dist_path):
+    dist_path = os.path.abspath(os.path.join(backend_dir, "..", "dist"))
+
 if os.path.exists(dist_path):
     app.mount("/assets", StaticFiles(directory=os.path.join(dist_path, "assets")), name="assets")
 

@@ -6,34 +6,58 @@ import {
   RotateCcw, 
   Maximize2, 
   Search, 
-  Eye, 
-  EyeOff, 
   Zap, 
-  Activity, 
-  ShieldAlert, 
   Sliders, 
-  Sun,
-  Moon,
-  Info
+  Info,
+  GitCompare,
+  Table,
+  Loader2,
+  Bot,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Play,
+  Trash2
 } from 'lucide-react';
 
 export default function CircuitVisualizer({ 
   networkData, 
   selectedElement, 
   onSelectElement, 
-  showFlowAnimation, 
-  setShowFlowAnimation 
+  showFlowAnimation = true, 
+  setShowFlowAnimation,
+  onOpenComparison,
+  onOpenDataTable,
+  onTriggerAIHeal,
+  isAISolving = false,
+  isStressed = false,
+  isLoading = false,
+  cases = [],
+  selectedCaseId = 'case14',
+  onSelectCase,
+  onApplyStress,
+  onResetStress
 }) {
   const svgRef = useRef(null);
   const containerRef = useRef(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [highlightedBusId, setHighlightedBusId] = useState(null);
-  const [filterType, setFilterType] = useState('all'); // 'all', 'slack', 'pv', 'pq', 'overload'
+  const [filterType, setFilterType] = useState('all'); // 'all', 'slack', 'pv', 'pq', 'critical'
+  const [hoveredBusId, setHoveredBusId] = useState(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState(null);
+
+  // Stress test states (string input allowing free backspace and decimal typing)
+  const [localMultiplier, setLocalMultiplier] = useState('1');
+  const [selectedTargetBuses, setSelectedTargetBuses] = useState([]);
+  const [busSearchQuery, setBusSearchQuery] = useState('');
+  const [isBusGridOpen, setIsBusGridOpen] = useState(false);
+  const [stressRules, setStressRules] = useState([]);
 
   const { summary, nodes, edges } = networkData;
-  const canvasWidth = summary.canvas_width || 1600;
-  const canvasHeight = summary.canvas_height || 1000;
+  const canvasWidth = summary.canvas_width || 2800;
+  const canvasHeight = summary.canvas_height || 1800;
 
   // D3 Zoom setup
   const zoomBehaviorRef = useRef(null);
@@ -47,7 +71,7 @@ export default function CircuitVisualizer({
     gRef.current = g;
 
     const zoom = d3.zoom()
-      .scaleExtent([0.15, 6])
+      .scaleExtent([0.01, 50])
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
         setZoomLevel(event.transform.k);
@@ -56,46 +80,70 @@ export default function CircuitVisualizer({
     zoomBehaviorRef.current = zoom;
     svg.call(zoom);
 
-    // Initial fit to screen
-    handleFitToScreen();
+    const timer = setTimeout(() => {
+      handleFitToScreen();
+    }, 60);
 
+    const handleResize = () => handleFitToScreen();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [networkData]);
 
   // Zoom handlers
   const handleZoomIn = () => {
     if (svgRef.current && zoomBehaviorRef.current) {
-      d3.select(svgRef.current).transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 1.3);
+      d3.select(svgRef.current).transition().duration(250).call(zoomBehaviorRef.current.scaleBy, 1.4);
     }
   };
 
   const handleZoomOut = () => {
     if (svgRef.current && zoomBehaviorRef.current) {
-      d3.select(svgRef.current).transition().duration(300).call(zoomBehaviorRef.current.scaleBy, 0.75);
+      d3.select(svgRef.current).transition().duration(250).call(zoomBehaviorRef.current.scaleBy, 0.7);
     }
   };
 
   const handleResetZoom = () => {
     if (svgRef.current && zoomBehaviorRef.current) {
-      d3.select(svgRef.current).transition().duration(400).call(zoomBehaviorRef.current.transform, d3.zoomIdentity);
+      handleFitToScreen();
     }
   };
 
   const handleFitToScreen = () => {
-    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current) return;
+    if (!svgRef.current || !containerRef.current || !zoomBehaviorRef.current || !nodes || nodes.length === 0) return;
 
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
+    const containerWidth = containerRef.current.clientWidth || 1000;
+    const containerHeight = containerRef.current.clientHeight || 700;
+
+    const xCoords = nodes.map(n => n.x);
+    const yCoords = nodes.map(n => n.y);
+    const minX = Math.min(...xCoords);
+    const maxX = Math.max(...xCoords);
+    const minY = Math.min(...yCoords);
+    const maxY = Math.max(...yCoords);
+
+    const networkWidth = Math.max(maxX - minX, 100);
+    const networkHeight = Math.max(maxY - minY, 100);
+
+    // Padding so peripheral nodes are well within the canvas
+    const pad = Math.min(80, Math.min(containerWidth, containerHeight) * 0.08);
 
     const scale = Math.min(
-      (containerWidth - 80) / canvasWidth,
-      (containerHeight - 80) / canvasHeight
+      (containerWidth - pad * 2) / networkWidth,
+      (containerHeight - pad * 2) / networkHeight
     );
 
-    const tx = (containerWidth - canvasWidth * scale) / 2;
-    const ty = (containerHeight - canvasHeight * scale) / 2;
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const tx = containerWidth / 2 - centerX * scale;
+    const ty = containerHeight / 2 - centerY * scale;
 
     const transform = d3.zoomIdentity.translate(tx, ty).scale(scale);
-    d3.select(svgRef.current).transition().duration(500).call(zoomBehaviorRef.current.transform, transform);
+    d3.select(svgRef.current).transition().duration(400).call(zoomBehaviorRef.current.transform, transform);
   };
 
   // Search & Focus on specific bus
@@ -114,7 +162,7 @@ export default function CircuitVisualizer({
 
       const containerWidth = containerRef.current.clientWidth;
       const containerHeight = containerRef.current.clientHeight;
-      const targetScale = 1.5;
+      const targetScale = 1.2;
 
       const tx = containerWidth / 2 - node.x * targetScale;
       const ty = containerHeight / 2 - node.y * targetScale;
@@ -126,6 +174,74 @@ export default function CircuitVisualizer({
     }
   };
 
+  // Bus selection in stress test
+  const toggleTargetBus = (bId) => {
+    if (selectedTargetBuses.includes(bId)) {
+      setSelectedTargetBuses(selectedTargetBuses.filter(id => id !== bId));
+    } else {
+      setSelectedTargetBuses([...selectedTargetBuses, bId]);
+    }
+  };
+
+  const toggleSelectAllBuses = () => {
+    if (selectedTargetBuses.length === nodes.length) {
+      setSelectedTargetBuses([]);
+    } else {
+      setSelectedTargetBuses(nodes.map(n => n.id));
+    }
+  };
+
+  // Save rule
+  const handleSaveRule = () => {
+    const mult = parseFloat(localMultiplier) || 1.0;
+    const targetCount = selectedTargetBuses.length > 0 ? selectedTargetBuses.length : nodes.length;
+    const newRule = {
+      id: Date.now(),
+      multiplier: mult,
+      targetBuses: selectedTargetBuses.length > 0 ? [...selectedTargetBuses] : nodes.map(n => n.id),
+      label: `Rule ${stressRules.length + 1}: ${mult}x on ${targetCount} buses`
+    };
+    setStressRules([...stressRules, newRule]);
+  };
+
+  const handleDeleteRule = (ruleId) => {
+    setStressRules(stressRules.filter(r => r.id !== ruleId));
+  };
+
+  // Run Stress Test
+  const handleRunStress = () => {
+    if (!onApplyStress) return;
+    const busScales = {};
+    const mult = parseFloat(localMultiplier) || 1.0;
+
+    if (stressRules.length > 0) {
+      stressRules.forEach(rule => {
+        rule.targetBuses.forEach(bId => {
+          busScales[bId] = rule.multiplier;
+        });
+      });
+    } else if (selectedTargetBuses.length > 0) {
+      selectedTargetBuses.forEach(bId => {
+        busScales[bId] = mult;
+      });
+    } else {
+      // Global scale across all load buses
+      nodes.forEach(n => {
+        if (n.pd > 0) {
+          busScales[n.id] = mult;
+        }
+      });
+    }
+    onApplyStress(busScales);
+  };
+
+  const handleResetLocalStress = () => {
+    setLocalMultiplier('1');
+    setSelectedTargetBuses([]);
+    setStressRules([]);
+    if (onResetStress) onResetStress();
+  };
+
   // Map bus lookup for edges
   const nodeMap = useMemo(() => {
     const map = new Map();
@@ -133,23 +249,32 @@ export default function CircuitVisualizer({
     return map;
   }, [nodes]);
 
-  // Color mappings
-  const getLineColor = (edge) => {
-    if (edge.thermal_status === 'overload') return '#ef4444'; // Red
-    if (edge.thermal_status === 'warning') return '#f59e0b';  // Amber
-    if (edge.loading_pct > 60) return '#eab308';             // Yellow
-    return '#10b981';                                         // Emerald green
+  // Palette styling with high contrast
+  const getLineStroke = (edge) => {
+    if (edge.is_tripped || edge.status === 0 || edge.thermal_status === 'tripped') return '#DC2626';
+    if (edge.thermal_status === 'overload' || (edge.loading_pct || 0) > 125) return '#DC2626';
+    if (edge.thermal_status === 'warning' || (edge.loading_pct || 0) > 110) return '#D97706';
+    return '#374151'; // High-contrast crisp charcoal-slate for normal in-service lines (≤110%)
   };
 
-  const getBusBorderColor = (node) => {
-    if (node.v_status === 'critical') return '#ef4444';
-    if (node.v_status === 'alert') return '#f59e0b';
-    if (node.type === 'slack') return '#a855f7';
-    if (node.type === 'pv') return '#06b6d4';
-    return '#10b981';
+  // High-distinction bus styles for instant visual differentiation
+  const getBusNodeStyles = (node) => {
+    if (node.v_status === 'critical') {
+      return { fill: '#FEE2E2', stroke: '#DC2626', text: '#991B1B' };
+    }
+    if (node.v_status === 'alert') {
+      return { fill: '#FEF3C7', stroke: '#D97706', text: '#92400E' };
+    }
+    if (node.type === 'slack') {
+      return { fill: '#EDE9FE', stroke: '#7C3AED', text: '#5B21B6' }; // Vivid Royal Purple
+    }
+    if (node.type === 'pv') {
+      return { fill: '#D1FAE5', stroke: '#059669', text: '#065F46' }; // Vivid Emerald Jade
+    }
+    return { fill: '#F1F5F9', stroke: '#475569', text: '#1E293B' };   // Steel Slate Grey
   };
 
-  // Filtering nodes
+  // Filter nodes
   const filteredNodes = useMemo(() => {
     if (filterType === 'all') return nodes;
     if (filterType === 'slack') return nodes.filter(n => n.type === 'slack');
@@ -159,376 +284,590 @@ export default function CircuitVisualizer({
     return nodes;
   }, [nodes, filterType]);
 
+  const filteredBusButtons = useMemo(() => {
+    if (!busSearchQuery) return nodes;
+    return nodes.filter(n => String(n.id).includes(busSearchQuery));
+  }, [nodes, busSearchQuery]);
+
+  const isGridSafe = summary?.grid_health === 'SAFE';
+
   return (
-    <div ref={containerRef} className="relative w-full h-full bg-[#080d1a] overflow-hidden select-none grid-bg">
+    <div className="flex-1 w-full h-full flex overflow-hidden bg-[#F5F3EC] text-[#1C1B18] font-sans">
+      
+      {/* ========================================================================= */}
+      {/* LEFT SIDEBAR CONTROLS (NETWORK SELECTION, STRESS TEST, BOTTOM ACTIONS)     */}
+      {/* ========================================================================= */}
+      <aside className="w-64 sm:w-72 bg-[#FAF8F4] border-r border-[#E3DFD5] h-full flex flex-col justify-between p-4 overflow-y-auto z-20 shrink-0">
+        <div className="space-y-4">
+          
+          {/* 1. NETWORK SELECTION */}
+          <div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-[#7A766D] mb-1.5 font-semibold">
+              NETWORK
+            </div>
+            <div className="relative">
+              <select
+                value={selectedCaseId}
+                onChange={(e) => onSelectCase && onSelectCase(e.target.value)}
+                className="w-full appearance-none bg-[#FAF8F4] border border-[#DDD8CD] text-[#1C1B18] text-xs font-bold rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:border-[#244B43] cursor-pointer hover:bg-[#F2EFE8] transition-colors truncate"
+              >
+                {cases.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-[#FAF8F4] text-[#1C1B18]">
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-2.5 text-[#7A766D] pointer-events-none" />
+            </div>
+          </div>
 
-      {/* Floating Canvas View Controls Toolbar */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 glass-panel p-2">
-        <button 
-          onClick={handleZoomIn} 
-          title="Zoom In (+)"
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-        >
-          <ZoomIn size={18} />
-        </button>
-        <button 
-          onClick={handleZoomOut} 
-          title="Zoom Out (-)"
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-        >
-          <ZoomOut size={18} />
-        </button>
-        <button 
-          onClick={handleResetZoom} 
-          title="Reset Zoom"
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-        >
-          <RotateCcw size={18} />
-        </button>
-        <button 
-          onClick={handleFitToScreen} 
-          title="Fit to Viewport"
-          className="p-2 text-slate-300 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-        >
-          <Maximize2 size={18} />
-        </button>
+          {/* 2. STRESS TEST */}
+          <div className="space-y-2.5 pt-3 border-t border-[#E3DFD5]">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[#7A766D] font-semibold">
+                STRESS TEST
+              </span>
+              {isStressed && (
+                <span className="text-[10px] font-mono font-bold text-[#A67C33] lowercase">
+                  active
+                </span>
+              )}
+            </div>
 
-        <div className="h-5 w-[1px] bg-slate-800 mx-1" />
+            {/* Load multiplier */}
+            <div>
+              <div className="text-xs text-[#5C5950] mb-1">
+                Load multiplier
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  value={localMultiplier}
+                  onChange={(e) => setLocalMultiplier(e.target.value)}
+                  className="w-full bg-[#FAF8F4] border border-[#DDD8CD] text-[#1C1B18] font-bold text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-[#244B43]"
+                  placeholder="1.0"
+                />
+                <span className="absolute right-7 text-xs text-[#7A766D] font-bold pointer-events-none">x</span>
+                {localMultiplier !== '1' && localMultiplier !== '' && (
+                  <button
+                    onClick={() => setLocalMultiplier('1')}
+                    className="absolute right-2 text-[#7A766D] hover:text-[#1C1B18]"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
 
-        {/* Animation Flow Toggle */}
-        <button
-          onClick={() => setShowFlowAnimation(!showFlowAnimation)}
-          title="Toggle Animated Power Flow Particles"
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
-            showFlowAnimation 
-              ? 'bg-blue-600/30 text-blue-400 border border-blue-500/40' 
-              : 'bg-slate-800/60 text-slate-400 border border-slate-700'
-          }`}
-        >
-          <Activity size={14} className={showFlowAnimation ? 'animate-pulse' : ''} />
-          <span>Flow Animation</span>
-        </button>
+              {/* Multiplier Preset Buttons */}
+              <div className="grid grid-cols-4 gap-1 mt-1.5">
+                {['0.5', '1', '2', '5'].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setLocalMultiplier(m)}
+                    className={`py-1 rounded-md text-[11px] font-semibold border transition-all ${
+                      localMultiplier === m
+                        ? 'bg-[#244B43] text-[#FAF8F4] border-[#244B43]'
+                        : 'bg-[#ECE8DF] text-[#5C5950] border-[#DDD8CD] hover:text-[#1C1B18]'
+                    }`}
+                  >
+                    {m}x
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        <div className="h-5 w-[1px] bg-slate-800 mx-1" />
+            {/* Target buses (Collapsible Section) */}
+            <div className="space-y-1.5">
+              <button
+                onClick={() => setIsBusGridOpen(!isBusGridOpen)}
+                className="w-full text-xs font-semibold text-[#1C1B18] flex items-center justify-between py-1"
+              >
+                <span>
+                  Target buses ({selectedTargetBuses.length} selected)
+                </span>
+                {isBusGridOpen ? <ChevronUp size={14} className="text-[#7A766D]" /> : <ChevronDown size={14} className="text-[#7A766D]" />}
+              </button>
 
-        <div className="text-xs text-slate-400 px-2 font-mono">
-          Zoom: {Math.round(zoomLevel * 100)}%
-        </div>
-      </div>
-
-      {/* Floating Bus Search & Filter Bar */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
-        {/* Bus Search */}
-        <div className="glass-panel px-3 py-1.5 flex items-center gap-2 border-slate-800 w-52">
-          <Search size={16} className="text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search Bus ID (e.g. 14)..."
-            value={searchQuery}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none w-full font-mono"
-          />
-        </div>
-
-        {/* Filter Dropdown */}
-        <div className="glass-panel px-3 py-1.5 flex items-center gap-2 border-slate-800">
-          <Sliders size={15} className="text-blue-400" />
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="bg-transparent text-xs text-slate-300 focus:outline-none cursor-pointer"
-          >
-            <option value="all" className="bg-slate-900 text-white">All Buses ({nodes.length})</option>
-            <option value="slack" className="bg-slate-900 text-white">Slack Buses</option>
-            <option value="pv" className="bg-slate-900 text-white">PV Generators</option>
-            <option value="pq" className="bg-slate-900 text-white">PQ Loads</option>
-            <option value="critical" className="bg-slate-900 text-white">Voltage Alerts</option>
-          </select>
-        </div>
-      </div>
-
-      {/* SVG Canvas Render Engine */}
-      <svg
-        ref={svgRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-      >
-        <defs>
-          {/* Arrow markers for transmission line power flow */}
-          <marker
-            id="arrow-normal"
-            viewBox="0 0 10 10"
-            refX="20"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#10b981" />
-          </marker>
-          <marker
-            id="arrow-warning"
-            viewBox="0 0 10 10"
-            refX="20"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b" />
-          </marker>
-          <marker
-            id="arrow-overload"
-            viewBox="0 0 10 10"
-            refX="20"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
-          </marker>
-
-          {/* Node Glow Filters */}
-          <filter id="glow-slack" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="6" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-          <filter id="glow-danger" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-
-        {/* Main Zoom Container */}
-        <g className="main-group">
-          {/* 1. TRANSMISSION LINES (EDGES) */}
-          <g className="edges-group">
-            {edges.map((edge) => {
-              const sourceNode = nodeMap.get(edge.from_bus);
-              const targetNode = nodeMap.get(edge.to_bus);
-              if (!sourceNode || !targetNode) return null;
-
-              const isSelected = selectedElement?.type === 'line' && selectedElement?.data?.id === edge.id;
-              const color = getLineColor(edge);
-
-              // Calculate stroke width based on thermal capacity
-              const baseWidth = Math.max(2, Math.min(6, (edge.rate_a / summary.base_mva) * 3));
-
-              return (
-                <g key={edge.id} className="group cursor-pointer">
-                  {/* Line hit target area */}
-                  <line
-                    x1={sourceNode.x}
-                    y1={sourceNode.y}
-                    x2={targetNode.x}
-                    y2={targetNode.y}
-                    stroke="transparent"
-                    strokeWidth={16}
-                    onClick={() => onSelectElement({ type: 'line', data: edge })}
-                  />
-
-                  {/* Main Line Stroke */}
-                  <line
-                    x1={sourceNode.x}
-                    y1={sourceNode.y}
-                    x2={targetNode.x}
-                    y2={targetNode.y}
-                    stroke={isSelected ? '#60a5fa' : color}
-                    strokeWidth={isSelected ? baseWidth + 3 : baseWidth}
-                    strokeOpacity={isSelected ? 1.0 : 0.75}
-                    className="transition-all duration-200"
-                  />
-
-                  {/* Flow animation dash overlay */}
-                  {showFlowAnimation && edge.pf !== 0 && (
-                    <line
-                      x1={edge.pf > 0 ? sourceNode.x : targetNode.x}
-                      y1={edge.pf > 0 ? sourceNode.y : targetNode.y}
-                      x2={edge.pf > 0 ? targetNode.x : sourceNode.x}
-                      y2={edge.pf > 0 ? targetNode.y : sourceNode.y}
-                      stroke="#ffffff"
-                      strokeWidth={2}
-                      strokeOpacity={0.8}
-                      className="line-flow-animated"
-                    />
-                  )}
-
-                  {/* Midpoint Label (Line Loading %) */}
-                  {nodes.length <= 39 && (
-                    <g 
-                      transform={`translate(${(sourceNode.x + targetNode.x) / 2}, ${(sourceNode.y + targetNode.y) / 2})`}
-                      className="pointer-events-none"
+              {isBusGridOpen && (
+                <div className="space-y-2 p-2.5 rounded-xl bg-[#ECE8DF] border border-[#DDD8CD] animate-in fade-in duration-150">
+                  {/* Search and All toggle */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Search bus..."
+                        value={busSearchQuery}
+                        onChange={(e) => setBusSearchQuery(e.target.value)}
+                        className="w-full bg-[#FAF8F4] border border-[#DDD8CD] rounded-md pl-6 pr-2 py-0.5 text-xs text-[#1C1B18] placeholder:text-[#7A766D] focus:outline-none focus:border-[#244B43]"
+                      />
+                      <Search size={11} className="absolute left-1.5 top-1.5 text-[#7A766D] pointer-events-none" />
+                    </div>
+                    <button
+                      onClick={toggleSelectAllBuses}
+                      className="px-2 py-0.5 rounded bg-[#FAF8F4] border border-[#DDD8CD] text-[11px] font-semibold text-[#5C5950] hover:text-[#1C1B18]"
                     >
+                      {selectedTargetBuses.length === nodes.length ? 'None' : 'All'}
+                    </button>
+                  </div>
+
+                  {/* Numbered Bus Button Grid (3-column) */}
+                  <div className="grid grid-cols-3 gap-1 max-h-36 overflow-y-auto p-0.5">
+                    {filteredBusButtons.map((node) => {
+                      const isSelected = selectedTargetBuses.includes(node.id);
+                      return (
+                        <button
+                          key={node.id}
+                          onClick={() => toggleTargetBus(node.id)}
+                          className={`py-1 rounded text-xs font-mono font-bold transition-all border ${
+                            isSelected
+                              ? 'bg-[#244B43] text-[#FAF8F4] border-[#244B43]'
+                              : 'bg-[#FAF8F4] text-[#5C5950] border-[#DDD8CD] hover:border-[#244B43]'
+                          }`}
+                        >
+                          {node.id}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Save Rule Action */}
+                  <button
+                    onClick={handleSaveRule}
+                    className="w-full py-1 rounded-md bg-[#FAF8F4] hover:bg-[#E2DDD2] border border-[#DDD8CD] text-[#244B43] text-xs font-semibold transition-all flex items-center justify-center gap-1"
+                  >
+                    <Plus size={12} />
+                    <span>Save rule ({selectedTargetBuses.length} buses @ {localMultiplier}x)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Saved Rules List */}
+              {stressRules.length > 0 && (
+                <div className="space-y-1">
+                  {stressRules.map((rule) => (
+                    <div 
+                      key={rule.id}
+                      className="p-1.5 px-2 rounded-lg bg-[#ECE8DF] border border-[#DDD8CD] text-[11px] font-mono text-[#1C1B18] flex items-center justify-between"
+                    >
+                      <span>{rule.label}</span>
+                      <button
+                        onClick={() => handleDeleteRule(rule.id)}
+                        className="text-[#7A766D] hover:text-red-600 ml-1"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Run Analysis Action Button */}
+            <div className="flex items-center gap-1.5 pt-1">
+              <button
+                onClick={handleRunStress}
+                disabled={isLoading}
+                className="flex-1 py-2 rounded-lg bg-[#244B43] hover:bg-[#1B3B34] text-[#FAF8F4] text-xs font-bold transition-all shadow flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Play size={12} fill="currentColor" />}
+                <span>Run analysis</span>
+              </button>
+
+              {isStressed && (
+                <button
+                  onClick={handleResetLocalStress}
+                  title="Reset to 1.0x baseline"
+                  className="p-2 rounded-lg bg-[#ECE8DF] hover:bg-[#E2DDD2] border border-[#DDD8CD] text-[#5C5950] hover:text-[#1C1B18] transition-colors"
+                >
+                  <RotateCcw size={13} />
+                </button>
+              )}
+            </div>
+          </div>
+
+        </div>
+
+        {/* BOTTOM ACTION BUTTONS */}
+        <div className="pt-3 border-t border-[#E3DFD5] grid grid-cols-3 gap-1.5 text-xs">
+          <button
+            onClick={onOpenComparison}
+            className={`py-2 px-1 rounded-lg border text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
+              isStressed
+                ? 'bg-[#E3ECE6] text-[#244B43] border-[#A2BEB5]'
+                : 'bg-[#ECE8DF] text-[#5C5950] border-[#DDD8CD] hover:text-[#1C1B18]'
+            }`}
+            title="Compare with baseline"
+          >
+            <GitCompare size={14} />
+            <span>Compare</span>
+          </button>
+
+          <button
+            onClick={onTriggerAIHeal}
+            disabled={isAISolving}
+            className={`py-2 px-1 rounded-lg border text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
+              !isGridSafe
+                ? 'bg-[#244B43] text-[#FAF8F4] border-[#244B43] animate-pulse'
+                : 'bg-[#ECE8DF] text-[#5C5950] border-[#DDD8CD] hover:text-[#1C1B18]'
+            }`}
+            title="AI Operator Grid Remediation"
+          >
+            {isAISolving ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
+            <span>Auto-heal</span>
+          </button>
+
+          <button
+            onClick={onOpenDataTable}
+            className="py-2 px-1 rounded-lg bg-[#ECE8DF] text-[#5C5950] border border-[#DDD8CD] hover:text-[#1C1B18] text-[11px] font-bold flex flex-col items-center gap-1 transition-all"
+            title="View Full Data Matrix"
+          >
+            <Table size={14} />
+            <span>Matrix</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* ========================================================================= */}
+      {/* CENTER INTERACTIVE SVG CANVAS                                             */}
+      {/* ========================================================================= */}
+      <div ref={containerRef} className="relative flex-1 h-full overflow-hidden select-none bg-[#FAF9F6]">
+        
+        {/* TOP CANVAS CONTROLS TOOLBAR */}
+        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-[#FAF8F4] border border-[#DDD8CD] p-1.5 rounded-xl shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={handleZoomIn} 
+              title="Zoom In"
+              className="p-1.5 text-[#5C5950] hover:text-[#1C1B18] hover:bg-[#ECE8DF] rounded-lg transition-colors"
+            >
+              <ZoomIn size={15} />
+            </button>
+            <button 
+              onClick={handleZoomOut} 
+              title="Zoom Out"
+              className="p-1.5 text-[#5C5950] hover:text-[#1C1B18] hover:bg-[#ECE8DF] rounded-lg transition-colors"
+            >
+              <ZoomOut size={15} />
+            </button>
+            <button 
+              onClick={handleResetZoom} 
+              title="Reset Zoom"
+              className="p-1.5 text-[#5C5950] hover:text-[#1C1B18] hover:bg-[#ECE8DF] rounded-lg transition-colors"
+            >
+              <RotateCcw size={15} />
+            </button>
+            <button 
+              onClick={handleFitToScreen} 
+              title="Fit to Viewport"
+              className="p-1.5 text-[#5C5950] hover:text-[#1C1B18] hover:bg-[#ECE8DF] rounded-lg transition-colors"
+            >
+              <Maximize2 size={15} />
+            </button>
+          </div>
+
+          <div className="h-4 w-[1px] bg-[#DDD8CD] mx-0.5" />
+
+          {/* Bus Search */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Find bus..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              className="bg-[#FAF8F4] border border-[#DDD8CD] text-[#1C1B18] rounded-lg pl-7 pr-2.5 py-1 text-xs focus:outline-none focus:border-[#244B43] w-28 sm:w-36 placeholder:text-[#7A766D]"
+            />
+            <Search size={12} className="absolute left-2.5 top-2 text-[#7A766D] pointer-events-none" />
+          </div>
+
+          {/* Bus Filter Dropdown */}
+          <div className="relative">
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="appearance-none bg-[#FAF8F4] border border-[#DDD8CD] text-[#1C1B18] rounded-lg pl-2.5 pr-6 py-1 text-xs focus:outline-none focus:border-[#244B43] cursor-pointer"
+            >
+              <option value="all">All buses</option>
+              <option value="slack">Slack only</option>
+              <option value="pv">PV Generators</option>
+              <option value="pq">PQ Loads</option>
+              <option value="critical">Alert / Critical</option>
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-2 text-[#7A766D] pointer-events-none" />
+          </div>
+        </div>
+
+        {/* SVG CANVAS */}
+        <svg
+          ref={svgRef}
+          className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden"
+        >
+          <defs>
+            <pattern id="dot-grid" x="0" y="0" width="30" height="30" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1" fill="#DDD8CD" />
+            </pattern>
+          </defs>
+
+          {/* Background Grid */}
+          <rect width="100%" height="100%" fill="url(#dot-grid)" />
+
+          <g className="main-group">
+            {/* 1. TRANSMISSION BRANCHES */}
+            <g className="edges-group">
+              {edges.map((edge) => {
+                const sourceNode = nodeMap.get(edge.from_bus);
+                const targetNode = nodeMap.get(edge.to_bus);
+                if (!sourceNode || !targetNode) return null;
+
+                const isTripped = edge.is_tripped || edge.status === 0 || edge.thermal_status === 'tripped';
+                const strokeColor = getLineStroke(edge);
+                const isHovered = hoveredEdgeId === edge.id;
+                const isSelected = selectedElement?.type === 'line' && (
+                  selectedElement.data.id === edge.id ||
+                  (selectedElement.data.from_bus === edge.from_bus && selectedElement.data.to_bus === edge.to_bus)
+                );
+
+                const midX = (sourceNode.x + targetNode.x) / 2;
+                const midY = (sourceNode.y + targetNode.y) / 2;
+
+                return (
+                  <g 
+                    key={edge.id || `${edge.from_bus}-${edge.to_bus}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectElement({ type: 'line', data: edge });
+                    }}
+                    onMouseEnter={() => setHoveredEdgeId(edge.id)}
+                    onMouseLeave={() => setHoveredEdgeId(null)}
+                    className="cursor-pointer group"
+                  >
+                    <line
+                      x1={sourceNode.x}
+                      y1={sourceNode.y}
+                      x2={targetNode.x}
+                      y2={targetNode.y}
+                      stroke="transparent"
+                      strokeWidth={16}
+                    />
+
+                    <line
+                      x1={sourceNode.x}
+                      y1={sourceNode.y}
+                      x2={targetNode.x}
+                      y2={targetNode.y}
+                      stroke={isTripped ? '#DC2626' : strokeColor}
+                      strokeWidth={isTripped ? (isSelected ? 4.5 : 3.5) : isSelected ? 4 : isHovered ? 2.8 : 2.2}
+                      strokeDasharray={isTripped ? "6,6" : undefined}
+                      strokeOpacity={isTripped ? 0.95 : 1}
+                      className="transition-all duration-150"
+                    />
+
+                    {isTripped ? (
+                      <g transform={`translate(${midX}, ${midY})`}>
+                        <rect
+                          x={-24}
+                          y={-8}
+                          width={48}
+                          height={16}
+                          rx={4}
+                          fill="#FEE2E2"
+                          stroke="#DC2626"
+                          strokeWidth={1.5}
+                        />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          className="font-mono text-[8px] font-bold select-none"
+                          fill="#DC2626"
+                        >
+                          TRIPPED
+                        </text>
+                      </g>
+                    ) : (
+                      edge.loading_pct !== undefined && (
+                        <g transform={`translate(${midX}, ${midY})`}>
+                          <rect
+                            x={-18}
+                            y={-8}
+                            width={36}
+                            height={16}
+                            rx={4}
+                            fill="#FAF8F4"
+                            stroke={isSelected ? '#244B43' : '#DDD8CD'}
+                            strokeWidth={isSelected ? 1.5 : 1}
+                          />
+                          <text
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            className="font-mono text-[9px] font-bold select-none"
+                            fill={strokeColor}
+                          >
+                            {Math.round(edge.loading_pct)}%
+                          </text>
+                        </g>
+                      )
+                    )}
+                  </g>
+                );
+              })}
+            </g>
+
+            {/* 2. SUBSTATION BUSES */}
+            <g className="nodes-group">
+              {filteredNodes.map((node) => {
+                const isSelected = selectedElement?.type === 'bus' && selectedElement.data.id === node.id;
+                const isHighlighted = highlightedBusId === node.id;
+                const isHovered = hoveredBusId === node.id;
+                const style = getBusNodeStyles(node);
+                const isSlack = node.type === 'slack';
+                const isPV = node.type === 'pv';
+
+                return (
+                  <g
+                    key={node.id}
+                    transform={`translate(${node.x}, ${node.y})`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectElement({ type: 'bus', data: node });
+                    }}
+                    onMouseEnter={() => setHoveredBusId(node.id)}
+                    onMouseLeave={() => setHoveredBusId(null)}
+                    className="cursor-pointer"
+                  >
+                    {/* Slack outer orbital ring for immediate recognition */}
+                    {isSlack && (
+                      <circle
+                        r={isSelected ? 18 : 15}
+                        fill="none"
+                        stroke="#7C3AED"
+                        strokeWidth={1.5}
+                        strokeDasharray="3,3"
+                      />
+                    )}
+
+                    {/* Node circle with rich distinct background fill and thick colored border */}
+                    <circle
+                      r={isSelected ? 14 : isHovered ? 13 : 11}
+                      fill={style.fill}
+                      stroke={style.stroke}
+                      strokeWidth={isSelected ? 3.5 : isHovered ? 3 : 2.5}
+                      className="transition-all duration-150 shadow-sm"
+                    />
+
+                    {/* Bus ID inside circle with matching high-contrast font color */}
+                    <text
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      className="font-mono text-[10px] font-bold select-none"
+                      fill={style.text}
+                    >
+                      {node.id}
+                    </text>
+
+                    {/* Small generator badge indicator on top for PV and Slack */}
+                    {(isPV || isSlack) && (
+                      <circle
+                        cx={0}
+                        cy={-(isSelected ? 14 : 11)}
+                        r={3}
+                        fill={isSlack ? '#7C3AED' : '#059669'}
+                        stroke="#FAF8F4"
+                        strokeWidth={1}
+                      />
+                    )}
+
+                    {/* Voltage badge below node */}
+                    <g transform="translate(0, 19)">
                       <rect
-                        x="-20"
-                        y="-9"
-                        width="40"
-                        height="18"
-                        rx="4"
-                        fill="#090d16"
-                        fillOpacity="0.85"
-                        stroke={color}
-                        strokeWidth="1"
+                        x={-22}
+                        y={-6}
+                        width={44}
+                        height={12}
+                        rx={3}
+                        fill="#FAF8F4"
+                        stroke="#DDD8CD"
+                        strokeWidth={0.8}
                       />
                       <text
                         textAnchor="middle"
-                        dy="3"
-                        fontSize="9"
-                        fontWeight="600"
-                        fill={color}
-                        className="font-mono"
+                        dominantBaseline="central"
+                        className="font-mono text-[8px] font-semibold"
+                        fill="#5C5950"
                       >
-                        {edge.loading_pct}%
+                        {node.vm ? node.vm.toFixed(3) : '1.000'} pu
                       </text>
                     </g>
-                  )}
-                </g>
-              );
-            })}
-          </g>
-
-          {/* 2. BUS NODES */}
-          <g className="nodes-group">
-            {filteredNodes.map((node) => {
-              const isSelected = selectedElement?.type === 'bus' && selectedElement?.data?.id === node.id;
-              const isHighlighted = highlightedBusId === node.id;
-              const borderColor = getBusBorderColor(node);
-
-              const isSlack = node.type === 'slack';
-              const isGen = node.type === 'pv' || isSlack;
-              const nodeRadius = isSlack ? 22 : (isGen ? 18 : 15);
-
-              return (
-                <g
-                  key={node.id}
-                  transform={`translate(${node.x}, ${node.y})`}
-                  className="cursor-pointer group"
-                  onClick={() => onSelectElement({ type: 'bus', data: node })}
-                >
-                  {/* Search Highlight Pulsing Ring */}
-                  {(isHighlighted || isSelected) && (
-                    <circle
-                      r={nodeRadius + 12}
-                      fill="none"
-                      stroke="#3b82f6"
-                      strokeWidth="2.5"
-                      strokeDasharray="4,4"
-                      className="animate-spin-slow"
-                    />
-                  )}
-
-                  {/* Outer Status Ring */}
-                  <circle
-                    r={nodeRadius + 3}
-                    fill="none"
-                    stroke={borderColor}
-                    strokeWidth={isSelected ? 3 : 2}
-                    strokeOpacity={0.9}
-                    filter={isSlack ? "url(#glow-slack)" : (node.v_status === 'critical' ? "url(#glow-danger)" : undefined)}
-                  />
-
-                  {/* Inner Node Body */}
-                  <circle
-                    r={nodeRadius}
-                    fill={isSlack ? '#3b0764' : (isGen ? '#083344' : '#064e3b')}
-                    stroke="#1e293b"
-                    strokeWidth="2"
-                  />
-
-                  {/* Bus ID Text */}
-                  <text
-                    textAnchor="middle"
-                    dy="4"
-                    fontSize={isSlack ? "13" : "11"}
-                    fontWeight="700"
-                    fill="#ffffff"
-                    className="font-mono select-none"
-                  >
-                    {node.id}
-                  </text>
-
-                  {/* Floating Voltage Badge below Bus */}
-                  <g transform={`translate(0, ${nodeRadius + 16})`} className="pointer-events-none">
-                    <rect
-                      x="-28"
-                      y="-8"
-                      width="56"
-                      height="16"
-                      rx="4"
-                      fill="#0f172a"
-                      fillOpacity="0.9"
-                      stroke={borderColor}
-                      strokeWidth="1"
-                    />
-                    <text
-                      textAnchor="middle"
-                      dy="4"
-                      fontSize="9.5"
-                      fontWeight="600"
-                      fill={node.v_status === 'critical' ? '#ef4444' : '#e2e8f0'}
-                      className="font-mono"
-                    >
-                      {node.vm.toFixed(3)} p.u.
-                    </text>
                   </g>
+                );
+              })}
+            </g>
 
-                  {/* Generator Icon / Tag if Generator */}
-                  {isGen && (
-                    <g transform={`translate(${nodeRadius + 6}, -${nodeRadius + 6})`}>
-                      <circle r="9" fill="#0284c7" stroke="#38bdf8" strokeWidth="1.5" />
-                      <text textAnchor="middle" dy="3" fontSize="9" fontWeight="800" fill="#ffffff">
-                        G
-                      </text>
-                    </g>
-                  )}
-
-                  {/* Slack Crown Badge */}
-                  {isSlack && (
-                    <g transform={`translate(0, -${nodeRadius + 12})`}>
-                      <polygon points="-6,4 0,-4 6,4 4,2 0,6 -4,2" fill="#a855f7" />
-                    </g>
-                  )}
-                </g>
-              );
-            })}
           </g>
-        </g>
-      </svg>
+        </svg>
 
-      {/* Legend Card */}
-      <div className="absolute bottom-4 left-4 z-20 glass-panel p-3 border-slate-800 text-xs">
-        <div className="font-semibold text-slate-300 mb-2 flex items-center gap-1.5">
-          <Info size={14} className="text-blue-400" />
-          <span>Grid Topology Legend</span>
+        {/* Real-time AC Solver Activity Toast */}
+        {isLoading && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#FAF8F4] border border-[#DDD8CD] shadow-lg text-xs font-mono text-[#244B43] animate-pulse">
+            <Loader2 size={13} className="animate-spin text-[#244B43]" />
+            <span className="font-bold">Solving AC Power Flow...</span>
+          </div>
+        )}
+
+        {/* BOTTOM LEFT: COMPACT 2-COLUMN LEGEND CARD */}
+        <div className="absolute bottom-4 left-4 z-20 bg-[#FAF8F4]/95 border border-[#DDD8CD] p-2.5 rounded-xl shadow-md text-xs hidden sm:block backdrop-blur-sm">
+          <div className="font-bold text-[#1C1B18] mb-1.5 flex items-center gap-1.5 text-[11px] pb-1 border-b border-[#E3DFD5]">
+            <Info size={12} className="text-[#244B43]" />
+            <span>Legend</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-[#5C5950]">
+            {/* Column 1: Substation Buses & Voltage Security */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-[#7C3AED] bg-[#EDE9FE] flex items-center justify-center text-[6px] font-bold text-[#5B21B6]">S</span>
+                <span>Slack bus</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-[#059669] bg-[#D1FAE5] flex items-center justify-center text-[6px] font-bold text-[#065F46]">G</span>
+                <span>PV generator</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-[#475569] bg-[#F1F5F9] flex items-center justify-center text-[6px] font-bold text-[#1E293B]">L</span>
+                <span>PQ load bus</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-[#D97706] bg-[#FEF3C7] flex items-center justify-center text-[6px] font-bold text-[#92400E]">!</span>
+                <span>V alert (&lt;0.90 / &gt;1.10)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-red-600 bg-[#FEE2E2] flex items-center justify-center text-[6px] font-bold text-red-700">!</span>
+                <span>V critical (&lt;0.85 / &gt;1.15)</span>
+              </div>
+            </div>
+
+            {/* Column 2: Transmission Lines & Contingency */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-0.5 bg-[#374151]" />
+                <span>Line ≤110%</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-0.5 bg-[#D97706]" />
+                <span>Line &gt;110% alert</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-0.5 bg-red-600" />
+                <span>Line &gt;125% overload</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3.5 h-0.5 border-t border-dashed border-red-600" />
+                <span>Tripped line outage</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px] text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm" />
-            <span>Slack / Ref Bus</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-sm" />
-            <span>PV Generator</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
-            <span>PQ Load Bus</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm" />
-            <span>Voltage Alert</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-1 bg-emerald-500 rounded" />
-            <span>Line &lt;60% Load</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-1 bg-amber-500 rounded" />
-            <span>Line Overload</span>
-          </div>
-        </div>
       </div>
+
     </div>
   );
 }

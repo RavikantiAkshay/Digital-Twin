@@ -12,7 +12,6 @@ import {
   GitCompare,
   Table,
   Loader2,
-  Bot,
   Plus,
   ChevronDown,
   ChevronUp,
@@ -29,8 +28,6 @@ export default function CircuitVisualizer({
   setShowFlowAnimation,
   onOpenComparison,
   onOpenDataTable,
-  onTriggerAIHeal,
-  isAISolving = false,
   isStressed = false,
   isLoading = false,
   cases = [],
@@ -502,19 +499,6 @@ export default function CircuitVisualizer({
             <span>Compare</span>
           </button>
 
-          <button
-            onClick={onTriggerAIHeal}
-            disabled={isAISolving}
-            className={`py-2 px-1 rounded-lg border text-[11px] font-bold flex flex-col items-center gap-1 transition-all ${
-              !isGridSafe
-                ? 'bg-[#244B43] text-[#FAF8F4] border-[#244B43] animate-pulse'
-                : 'bg-[#ECE8DF] text-[#5C5950] border-[#DDD8CD] hover:text-[#1C1B18]'
-            }`}
-            title="AI Operator Grid Remediation"
-          >
-            {isAISolving ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
-            <span>Auto-heal</span>
-          </button>
 
           <button
             onClick={onOpenDataTable}

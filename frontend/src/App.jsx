@@ -7,7 +7,6 @@ import StressTestPanel from './components/StressTestPanel';
 import DataTableModal from './components/DataTableModal';
 import CustomNetworkModal from './components/CustomNetworkModal';
 import ComparisonModal from './components/ComparisonModal';
-import AIAutoHealModal from './components/AIAutoHealModal';
 import { Loader2 } from 'lucide-react';
 import { getBuiltinBaseCase, BUILTIN_CASES_LIST } from './data/cached_cases';
 
@@ -24,9 +23,6 @@ export default function App() {
   const [isDataTableOpen, setIsDataTableOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [isStressPanelOpen, setIsStressPanelOpen] = useState(false);
-  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
-  const [aiHealResult, setAiHealResult] = useState(null);
-  const [isAISolving, setIsAISolving] = useState(false);
   const [showFlowAnimation, setShowFlowAnimation] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
@@ -193,40 +189,7 @@ export default function App() {
     }
   };
 
-  // Trigger Physics-Guided AI Grid Healing
-  const handleTriggerAIHeal = async () => {
-    setIsAISolving(true);
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`/api/network/${selectedCaseId}/ai-heal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          global_scale: 1.0,
-          bus_scales: activeBusScales || {},
-          tripped_branches: trippedBranches
-        })
-      });
-      if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
-      }
-      const data = await res.json();
-      setAiHealResult(data);
-      setIsAIModalOpen(true);
-    } catch (err) {
-      console.error(`AI Remediation failed:`, err);
-      setErrorMsg('AI Remediation call failed. Make sure python backend is running.');
-    } finally {
-      setIsAISolving(false);
-    }
-  };
 
-  const handleApplyAIDispatch = (solvedNetwork) => {
-    if (solvedNetwork) {
-      setNetworkData(solvedNetwork);
-    }
-    setIsAIModalOpen(false);
-  };
 
   // Reset grid back to 1.0x baseline state
   const handleResetStress = async () => {
@@ -380,8 +343,6 @@ export default function App() {
                   onOpenComparison={() => setIsComparisonOpen(true)}
                   isStressed={isStressed}
                   onOpenDataTable={() => setIsDataTableOpen(true)}
-                  onTriggerAIHeal={handleTriggerAIHeal}
-                  isAISolving={isAISolving}
                   isLoading={isLoading}
                   cases={cases}
                   selectedCaseId={selectedCaseId}
@@ -421,15 +382,6 @@ export default function App() {
         baselineData={baselineData}
         networkData={networkData}
         onResetStress={handleResetStress}
-      />
-
-      {/* AI AUTONOMOUS REMEDIATION MODAL */}
-      <AIAutoHealModal
-        isOpen={isAIModalOpen}
-        onClose={() => setIsAIModalOpen(false)}
-        aiResult={aiHealResult}
-        onApplyHeal={handleApplyAIDispatch}
-        isLoading={isAISolving}
       />
 
       {/* CUSTOM NETWORK BUILDER MODAL */}

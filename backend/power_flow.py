@@ -30,14 +30,35 @@ def solve_and_extract(
     case_id: str, 
     global_scale: float = 1.0, 
     bus_scales: Optional[Dict[Any, float]] = None,
-    tripped_branches: Optional[List[Any]] = None
+    tripped_branches: Optional[List[Any]] = None,
+    gen_dispatch: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Executes AC Newton-Raphson power flow on the given PyPOWER case_id with optional
-    global load scaling, targeted bus-specific load scaling, and transmission line outage contingencies.
+    global load scaling, targeted bus-specific load scaling, transmission line outage contingencies,
+    and optional generator redispatch setpoints (gen_dispatch).
     Formats complete telemetry, graph topology, and violation lists for frontend rendering.
     """
     mpc = load_case(case_id)
+    
+    # 0. Apply Custom Generator Redispatch if provided
+    if gen_dispatch is not None:
+        if isinstance(gen_dispatch, (list, np.ndarray)):
+            for i, pg_val in enumerate(gen_dispatch):
+                if i < len(mpc['gen']):
+                    pmin = float(mpc['gen'][i, 9])
+                    pmax = float(mpc['gen'][i, 8])
+                    mpc['gen'][i, 1] = np.clip(float(pg_val), pmin, pmax)
+        elif isinstance(gen_dispatch, dict):
+            for k, pg_val in gen_dispatch.items():
+                try:
+                    idx = int(k)
+                    if idx < len(mpc['gen']):
+                        pmin = float(mpc['gen'][idx, 9])
+                        pmax = float(mpc['gen'][idx, 8])
+                        mpc['gen'][idx, 1] = np.clip(float(pg_val), pmin, pmax)
+                except ValueError:
+                    pass
     
     # 1. Apply Global Load Scale
     if global_scale != 1.0:

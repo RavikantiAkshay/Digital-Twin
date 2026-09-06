@@ -1,0 +1,674 @@
+[
+  {
+    "case_id": "CASE9",
+    "case_name": "IEEE 9-Bus System (3 Generators, 9 Branches)",
+    "total_available_test_cases": 1350,
+    "evaluated_test_cases": 1350,
+    "evaluated_formatted": "1,350 / 1,350 (100.0%)",
+    "execution_time_seconds": 9.62,
+    "speed_samples_per_sec": 140.3,
+    "classifier_performance": {
+      "total_samples": 1350,
+      "overall_correct": 1327,
+      "overall_accuracy": 0.983,
+      "overall_accuracy_formatted": "1,327 / 1,350 ( 98.3%)",
+      "macro_precision": 0.9218,
+      "macro_recall": 0.8943,
+      "macro_f1": 0.9072,
+      "confusion_matrix": [
+        [
+          8,
+          2,
+          0
+        ],
+        [
+          2,
+          152,
+          18
+        ],
+        [
+          0,
+          1,
+          1167
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 10,
+          "ground_truth_formatted": "10 / 1,350 (  0.7%)",
+          "predicted_count": 10,
+          "predicted_formatted": "10 / 1,350 (  0.7%)",
+          "true_positives_TP": 8,
+          "true_negatives_TN": 1338,
+          "false_positives_FP": 2,
+          "false_negatives_FN": 2,
+          "precision": 0.8,
+          "recall_sensitivity": 0.8,
+          "specificity": 0.9985,
+          "f1_score": 0.8
+        },
+        "ALERT": {
+          "ground_truth_count": 172,
+          "ground_truth_formatted": "172 / 1,350 ( 12.7%)",
+          "predicted_count": 155,
+          "predicted_formatted": "155 / 1,350 ( 11.5%)",
+          "true_positives_TP": 152,
+          "true_negatives_TN": 1175,
+          "false_positives_FP": 3,
+          "false_negatives_FN": 20,
+          "precision": 0.9806,
+          "recall_sensitivity": 0.8837,
+          "specificity": 0.9975,
+          "f1_score": 0.9297
+        },
+        "CRITICAL": {
+          "ground_truth_count": 1168,
+          "ground_truth_formatted": "1,168 / 1,350 ( 86.5%)",
+          "predicted_count": 1185,
+          "predicted_formatted": "1,185 / 1,350 ( 87.8%)",
+          "true_positives_TP": 1167,
+          "true_negatives_TN": 164,
+          "false_positives_FP": 18,
+          "false_negatives_FN": 1,
+          "precision": 0.9848,
+          "recall_sensitivity": 0.9991,
+          "specificity": 0.9011,
+          "f1_score": 0.9919
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 10,
+      "total_safe_formatted": "10 / 1,350 (  0.7%)",
+      "healer_did_nothing_idle": 0,
+      "healer_did_nothing_formatted": "0 / 10 (  0.0%)",
+      "proactively_optimized_count": 7,
+      "proactively_optimized_formatted": "7 / 10 ( 70.0%)",
+      "average_optimization_loading_reduction_pct": 0.74,
+      "maintained_safe_count": 3,
+      "maintained_safe_formatted": "3 / 10 ( 30.0%)",
+      "inadvisable_intervention_count": 0,
+      "inadvisable_intervention_formatted": "0 / 10 (  0.0%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 1340,
+      "total_emergency_formatted": "1,340 / 1,350 ( 99.3%)",
+      "physically_infeasible_blackout_count": 686,
+      "physically_infeasible_formatted": "686 / 1,340 ( 51.2%)",
+      "infeasible_flagged_critical_count": 686,
+      "infeasible_flagged_critical_formatted": "686 / 686 (100.0%)",
+      "solvable_emergencies_evaluated": 654,
+      "solvable_emergencies_formatted": "654 / 1,340 ( 48.8%)",
+      "cured_to_safe_count": 270,
+      "cured_to_safe_formatted": "270 / 654 ( 41.3%)",
+      "partial_relief_count": 626,
+      "partial_relief_formatted": "626 / 654 ( 95.7%)",
+      "not_cured_count": 28,
+      "not_cured_formatted": "28 / 654 (  4.3%)",
+      "average_pre_heal_peak_loading_pct": 119.9,
+      "average_post_heal_peak_loading_pct": 90.4,
+      "average_overload_reduction_pct": 29.5,
+      "average_redispatch_mw": 122.4
+    }
+  },
+  {
+    "case_id": "CASE14",
+    "case_name": "IEEE 14-Bus System (5 Generators, 20 Branches)",
+    "total_available_test_cases": 3000,
+    "evaluated_test_cases": 3000,
+    "evaluated_formatted": "3,000 / 3,000 (100.0%)",
+    "execution_time_seconds": 50.98,
+    "speed_samples_per_sec": 58.8,
+    "classifier_performance": {
+      "total_samples": 3000,
+      "overall_correct": 2991,
+      "overall_accuracy": 0.997,
+      "overall_accuracy_formatted": "2,991 / 3,000 ( 99.7%)",
+      "macro_precision": 0.9764,
+      "macro_recall": 0.9872,
+      "macro_f1": 0.9817,
+      "confusion_matrix": [
+        [
+          2728,
+          6,
+          0
+        ],
+        [
+          3,
+          80,
+          0
+        ],
+        [
+          0,
+          0,
+          183
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 2734,
+          "ground_truth_formatted": "2,734 / 3,000 ( 91.1%)",
+          "predicted_count": 2731,
+          "predicted_formatted": "2,731 / 3,000 ( 91.0%)",
+          "true_positives_TP": 2728,
+          "true_negatives_TN": 263,
+          "false_positives_FP": 3,
+          "false_negatives_FN": 6,
+          "precision": 0.9989,
+          "recall_sensitivity": 0.9978,
+          "specificity": 0.9887,
+          "f1_score": 0.9984
+        },
+        "ALERT": {
+          "ground_truth_count": 83,
+          "ground_truth_formatted": "83 / 3,000 (  2.8%)",
+          "predicted_count": 86,
+          "predicted_formatted": "86 / 3,000 (  2.9%)",
+          "true_positives_TP": 80,
+          "true_negatives_TN": 2911,
+          "false_positives_FP": 6,
+          "false_negatives_FN": 3,
+          "precision": 0.9302,
+          "recall_sensitivity": 0.9639,
+          "specificity": 0.9979,
+          "f1_score": 0.9467
+        },
+        "CRITICAL": {
+          "ground_truth_count": 183,
+          "ground_truth_formatted": "183 / 3,000 (  6.1%)",
+          "predicted_count": 183,
+          "predicted_formatted": "183 / 3,000 (  6.1%)",
+          "true_positives_TP": 183,
+          "true_negatives_TN": 2817,
+          "false_positives_FP": 0,
+          "false_negatives_FN": 0,
+          "precision": 1.0,
+          "recall_sensitivity": 1.0,
+          "specificity": 1.0,
+          "f1_score": 1.0
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 2734,
+      "total_safe_formatted": "2,734 / 3,000 ( 91.1%)",
+      "healer_did_nothing_idle": 70,
+      "healer_did_nothing_formatted": "70 / 2,734 (  2.6%)",
+      "proactively_optimized_count": 315,
+      "proactively_optimized_formatted": "315 / 2,734 ( 11.5%)",
+      "average_optimization_loading_reduction_pct": 0.44,
+      "maintained_safe_count": 2349,
+      "maintained_safe_formatted": "2,349 / 2,734 ( 85.9%)",
+      "inadvisable_intervention_count": 0,
+      "inadvisable_intervention_formatted": "0 / 2,734 (  0.0%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 266,
+      "total_emergency_formatted": "266 / 3,000 (  8.9%)",
+      "physically_infeasible_blackout_count": 183,
+      "physically_infeasible_formatted": "183 / 266 ( 68.8%)",
+      "infeasible_flagged_critical_count": 183,
+      "infeasible_flagged_critical_formatted": "183 / 183 (100.0%)",
+      "solvable_emergencies_evaluated": 83,
+      "solvable_emergencies_formatted": "83 / 266 ( 31.2%)",
+      "cured_to_safe_count": 83,
+      "cured_to_safe_formatted": "83 / 83 (100.0%)",
+      "partial_relief_count": 83,
+      "partial_relief_formatted": "83 / 83 (100.0%)",
+      "not_cured_count": 0,
+      "not_cured_formatted": "0 / 83 (  0.0%)",
+      "average_pre_heal_peak_loading_pct": 2.9,
+      "average_post_heal_peak_loading_pct": 2.6,
+      "average_overload_reduction_pct": 0.4,
+      "average_redispatch_mw": 49.9
+    }
+  },
+  {
+    "case_id": "CASE30",
+    "case_name": "IEEE 30-Bus System (6 Generators, 41 Branches)",
+    "total_available_test_cases": 6151,
+    "evaluated_test_cases": 6151,
+    "evaluated_formatted": "6,151 / 6,151 (100.0%)",
+    "execution_time_seconds": 71.85,
+    "speed_samples_per_sec": 85.6,
+    "classifier_performance": {
+      "total_samples": 6151,
+      "overall_correct": 6018,
+      "overall_accuracy": 0.9784,
+      "overall_accuracy_formatted": "6,018 / 6,151 ( 97.8%)",
+      "macro_precision": 0.8782,
+      "macro_recall": 0.9632,
+      "macro_f1": 0.9125,
+      "confusion_matrix": [
+        [
+          157,
+          9,
+          0
+        ],
+        [
+          79,
+          1675,
+          2
+        ],
+        [
+          0,
+          43,
+          4186
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 166,
+          "ground_truth_formatted": "166 / 6,151 (  2.7%)",
+          "predicted_count": 236,
+          "predicted_formatted": "236 / 6,151 (  3.8%)",
+          "true_positives_TP": 157,
+          "true_negatives_TN": 5906,
+          "false_positives_FP": 79,
+          "false_negatives_FN": 9,
+          "precision": 0.6653,
+          "recall_sensitivity": 0.9458,
+          "specificity": 0.9868,
+          "f1_score": 0.7811
+        },
+        "ALERT": {
+          "ground_truth_count": 1756,
+          "ground_truth_formatted": "1,756 / 6,151 ( 28.5%)",
+          "predicted_count": 1727,
+          "predicted_formatted": "1,727 / 6,151 ( 28.1%)",
+          "true_positives_TP": 1675,
+          "true_negatives_TN": 4343,
+          "false_positives_FP": 52,
+          "false_negatives_FN": 81,
+          "precision": 0.9699,
+          "recall_sensitivity": 0.9539,
+          "specificity": 0.9882,
+          "f1_score": 0.9618
+        },
+        "CRITICAL": {
+          "ground_truth_count": 4229,
+          "ground_truth_formatted": "4,229 / 6,151 ( 68.8%)",
+          "predicted_count": 4188,
+          "predicted_formatted": "4,188 / 6,151 ( 68.1%)",
+          "true_positives_TP": 4186,
+          "true_negatives_TN": 1920,
+          "false_positives_FP": 2,
+          "false_negatives_FN": 43,
+          "precision": 0.9995,
+          "recall_sensitivity": 0.9898,
+          "specificity": 0.999,
+          "f1_score": 0.9947
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 166,
+      "total_safe_formatted": "166 / 6,151 (  2.7%)",
+      "healer_did_nothing_idle": 6,
+      "healer_did_nothing_formatted": "6 / 166 (  3.6%)",
+      "proactively_optimized_count": 17,
+      "proactively_optimized_formatted": "17 / 166 ( 10.2%)",
+      "average_optimization_loading_reduction_pct": 0.51,
+      "maintained_safe_count": 140,
+      "maintained_safe_formatted": "140 / 166 ( 84.3%)",
+      "inadvisable_intervention_count": 3,
+      "inadvisable_intervention_formatted": "3 / 166 (  1.8%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 5985,
+      "total_emergency_formatted": "5,985 / 6,151 ( 97.3%)",
+      "physically_infeasible_blackout_count": 368,
+      "physically_infeasible_formatted": "368 / 5,985 (  6.1%)",
+      "infeasible_flagged_critical_count": 368,
+      "infeasible_flagged_critical_formatted": "368 / 368 (100.0%)",
+      "solvable_emergencies_evaluated": 5617,
+      "solvable_emergencies_formatted": "5,617 / 5,985 ( 93.9%)",
+      "cured_to_safe_count": 1557,
+      "cured_to_safe_formatted": "1,557 / 5,617 ( 27.7%)",
+      "partial_relief_count": 2783,
+      "partial_relief_formatted": "2,783 / 5,617 ( 49.5%)",
+      "not_cured_count": 2834,
+      "not_cured_formatted": "2,834 / 5,617 ( 50.5%)",
+      "average_pre_heal_peak_loading_pct": 116.7,
+      "average_post_heal_peak_loading_pct": 117.6,
+      "average_overload_reduction_pct": 0.0,
+      "average_redispatch_mw": 23.6
+    }
+  },
+  {
+    "case_id": "CASE39",
+    "case_name": "IEEE 39-Bus New England System (10 Generators, 46 Branches)",
+    "total_available_test_cases": 6901,
+    "evaluated_test_cases": 6901,
+    "evaluated_formatted": "6,901 / 6,901 (100.0%)",
+    "execution_time_seconds": 95.66,
+    "speed_samples_per_sec": 72.1,
+    "classifier_performance": {
+      "total_samples": 6901,
+      "overall_correct": 6568,
+      "overall_accuracy": 0.9517,
+      "overall_accuracy_formatted": "6,568 / 6,901 ( 95.2%)",
+      "macro_precision": 0.9214,
+      "macro_recall": 0.9344,
+      "macro_f1": 0.9273,
+      "confusion_matrix": [
+        [
+          1874,
+          8,
+          0
+        ],
+        [
+          163,
+          918,
+          1
+        ],
+        [
+          0,
+          161,
+          3776
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 1882,
+          "ground_truth_formatted": "1,882 / 6,901 ( 27.3%)",
+          "predicted_count": 2037,
+          "predicted_formatted": "2,037 / 6,901 ( 29.5%)",
+          "true_positives_TP": 1874,
+          "true_negatives_TN": 4856,
+          "false_positives_FP": 163,
+          "false_negatives_FN": 8,
+          "precision": 0.92,
+          "recall_sensitivity": 0.9957,
+          "specificity": 0.9675,
+          "f1_score": 0.9564
+        },
+        "ALERT": {
+          "ground_truth_count": 1082,
+          "ground_truth_formatted": "1,082 / 6,901 ( 15.7%)",
+          "predicted_count": 1087,
+          "predicted_formatted": "1,087 / 6,901 ( 15.8%)",
+          "true_positives_TP": 918,
+          "true_negatives_TN": 5650,
+          "false_positives_FP": 169,
+          "false_negatives_FN": 164,
+          "precision": 0.8445,
+          "recall_sensitivity": 0.8484,
+          "specificity": 0.971,
+          "f1_score": 0.8465
+        },
+        "CRITICAL": {
+          "ground_truth_count": 3937,
+          "ground_truth_formatted": "3,937 / 6,901 ( 57.0%)",
+          "predicted_count": 3777,
+          "predicted_formatted": "3,777 / 6,901 ( 54.7%)",
+          "true_positives_TP": 3776,
+          "true_negatives_TN": 2963,
+          "false_positives_FP": 1,
+          "false_negatives_FN": 161,
+          "precision": 0.9997,
+          "recall_sensitivity": 0.9591,
+          "specificity": 0.9997,
+          "f1_score": 0.979
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 1882,
+      "total_safe_formatted": "1,882 / 6,901 ( 27.3%)",
+      "healer_did_nothing_idle": 0,
+      "healer_did_nothing_formatted": "0 / 1,882 (  0.0%)",
+      "proactively_optimized_count": 191,
+      "proactively_optimized_formatted": "191 / 1,882 ( 10.1%)",
+      "average_optimization_loading_reduction_pct": 2.62,
+      "maintained_safe_count": 1077,
+      "maintained_safe_formatted": "1,077 / 1,882 ( 57.2%)",
+      "inadvisable_intervention_count": 614,
+      "inadvisable_intervention_formatted": "614 / 1,882 ( 32.6%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 5019,
+      "total_emergency_formatted": "5,019 / 6,901 ( 72.7%)",
+      "physically_infeasible_blackout_count": 1708,
+      "physically_infeasible_formatted": "1,708 / 5,019 ( 34.0%)",
+      "infeasible_flagged_critical_count": 1708,
+      "infeasible_flagged_critical_formatted": "1,708 / 1,708 (100.0%)",
+      "solvable_emergencies_evaluated": 3311,
+      "solvable_emergencies_formatted": "3,311 / 5,019 ( 66.0%)",
+      "cured_to_safe_count": 462,
+      "cured_to_safe_formatted": "462 / 3,311 ( 14.0%)",
+      "partial_relief_count": 940,
+      "partial_relief_formatted": "940 / 3,311 ( 28.4%)",
+      "not_cured_count": 2371,
+      "not_cured_formatted": "2,371 / 3,311 ( 71.6%)",
+      "average_pre_heal_peak_loading_pct": 111.5,
+      "average_post_heal_peak_loading_pct": 125.5,
+      "average_overload_reduction_pct": 0.0,
+      "average_redispatch_mw": 1042.9
+    }
+  },
+  {
+    "case_id": "CASE57",
+    "case_name": "IEEE 57-Bus System (7 Generators, 80 Branches)",
+    "total_available_test_cases": 12000,
+    "evaluated_test_cases": 12000,
+    "evaluated_formatted": "12,000 / 12,000 (100.0%)",
+    "execution_time_seconds": 160.4,
+    "speed_samples_per_sec": 74.8,
+    "classifier_performance": {
+      "total_samples": 12000,
+      "overall_correct": 11871,
+      "overall_accuracy": 0.9892,
+      "overall_accuracy_formatted": "11,871 / 12,000 ( 98.9%)",
+      "macro_precision": 0.9679,
+      "macro_recall": 0.996,
+      "macro_f1": 0.9812,
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          1212,
+          0
+        ],
+        [
+          0,
+          129,
+          10659
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 0,
+          "ground_truth_formatted": "0 / 12,000 (  0.0%)",
+          "predicted_count": 0,
+          "predicted_formatted": "0 / 12,000 (  0.0%)",
+          "true_positives_TP": 0,
+          "true_negatives_TN": 12000,
+          "false_positives_FP": 0,
+          "false_negatives_FN": 0,
+          "precision": 1.0,
+          "recall_sensitivity": 1.0,
+          "specificity": 1.0,
+          "f1_score": 1.0
+        },
+        "ALERT": {
+          "ground_truth_count": 1212,
+          "ground_truth_formatted": "1,212 / 12,000 ( 10.1%)",
+          "predicted_count": 1341,
+          "predicted_formatted": "1,341 / 12,000 ( 11.2%)",
+          "true_positives_TP": 1212,
+          "true_negatives_TN": 10659,
+          "false_positives_FP": 129,
+          "false_negatives_FN": 0,
+          "precision": 0.9038,
+          "recall_sensitivity": 1.0,
+          "specificity": 0.988,
+          "f1_score": 0.9495
+        },
+        "CRITICAL": {
+          "ground_truth_count": 10788,
+          "ground_truth_formatted": "10,788 / 12,000 ( 89.9%)",
+          "predicted_count": 10659,
+          "predicted_formatted": "10,659 / 12,000 ( 88.8%)",
+          "true_positives_TP": 10659,
+          "true_negatives_TN": 1212,
+          "false_positives_FP": 0,
+          "false_negatives_FN": 129,
+          "precision": 1.0,
+          "recall_sensitivity": 0.988,
+          "specificity": 1.0,
+          "f1_score": 0.994
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 0,
+      "total_safe_formatted": "0 / 12,000 (  0.0%)",
+      "healer_did_nothing_idle": 0,
+      "healer_did_nothing_formatted": "0 / 0 (  0.0%)",
+      "proactively_optimized_count": 0,
+      "proactively_optimized_formatted": "0 / 0 (  0.0%)",
+      "average_optimization_loading_reduction_pct": 0.0,
+      "maintained_safe_count": 0,
+      "maintained_safe_formatted": "0 / 0 (  0.0%)",
+      "inadvisable_intervention_count": 0,
+      "inadvisable_intervention_formatted": "0 / 0 (  0.0%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 12000,
+      "total_emergency_formatted": "12,000 / 12,000 (100.0%)",
+      "physically_infeasible_blackout_count": 2087,
+      "physically_infeasible_formatted": "2,087 / 12,000 ( 17.4%)",
+      "infeasible_flagged_critical_count": 2087,
+      "infeasible_flagged_critical_formatted": "2,087 / 2,087 (100.0%)",
+      "solvable_emergencies_evaluated": 9913,
+      "solvable_emergencies_formatted": "9,913 / 12,000 ( 82.6%)",
+      "cured_to_safe_count": 1238,
+      "cured_to_safe_formatted": "1,238 / 9,913 ( 12.5%)",
+      "partial_relief_count": 9278,
+      "partial_relief_formatted": "9,278 / 9,913 ( 93.6%)",
+      "not_cured_count": 635,
+      "not_cured_formatted": "635 / 9,913 (  6.4%)",
+      "average_pre_heal_peak_loading_pct": 2.7,
+      "average_post_heal_peak_loading_pct": 2.2,
+      "average_overload_reduction_pct": 0.5,
+      "average_redispatch_mw": 279.2
+    }
+  },
+  {
+    "case_id": "CASE118",
+    "case_name": "IEEE 118-Bus Midwest System (54 Generators, 186 Branches)",
+    "total_available_test_cases": 27901,
+    "evaluated_test_cases": 27901,
+    "evaluated_formatted": "27,901 / 27,901 (100.0%)",
+    "execution_time_seconds": 439.16,
+    "speed_samples_per_sec": 63.5,
+    "classifier_performance": {
+      "total_samples": 27901,
+      "overall_correct": 27785,
+      "overall_accuracy": 0.9958,
+      "overall_accuracy_formatted": "27,785 / 27,901 ( 99.6%)",
+      "macro_precision": 0.9975,
+      "macro_recall": 0.9801,
+      "macro_f1": 0.9885,
+      "confusion_matrix": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          26045,
+          6
+        ],
+        [
+          0,
+          110,
+          1740
+        ]
+      ],
+      "per_class_breakdown": {
+        "SAFE": {
+          "ground_truth_count": 0,
+          "ground_truth_formatted": "0 / 27,901 (  0.0%)",
+          "predicted_count": 0,
+          "predicted_formatted": "0 / 27,901 (  0.0%)",
+          "true_positives_TP": 0,
+          "true_negatives_TN": 27901,
+          "false_positives_FP": 0,
+          "false_negatives_FN": 0,
+          "precision": 1.0,
+          "recall_sensitivity": 1.0,
+          "specificity": 1.0,
+          "f1_score": 1.0
+        },
+        "ALERT": {
+          "ground_truth_count": 26051,
+          "ground_truth_formatted": "26,051 / 27,901 ( 93.4%)",
+          "predicted_count": 26155,
+          "predicted_formatted": "26,155 / 27,901 ( 93.7%)",
+          "true_positives_TP": 26045,
+          "true_negatives_TN": 1740,
+          "false_positives_FP": 110,
+          "false_negatives_FN": 6,
+          "precision": 0.9958,
+          "recall_sensitivity": 0.9998,
+          "specificity": 0.9405,
+          "f1_score": 0.9978
+        },
+        "CRITICAL": {
+          "ground_truth_count": 1850,
+          "ground_truth_formatted": "1,850 / 27,901 (  6.6%)",
+          "predicted_count": 1746,
+          "predicted_formatted": "1,746 / 27,901 (  6.3%)",
+          "true_positives_TP": 1740,
+          "true_negatives_TN": 26045,
+          "false_positives_FP": 6,
+          "false_negatives_FN": 110,
+          "precision": 0.9966,
+          "recall_sensitivity": 0.9405,
+          "specificity": 0.9998,
+          "f1_score": 0.9677
+        }
+      }
+    },
+    "safe_scenarios_audit": {
+      "total_safe_scenarios": 0,
+      "total_safe_formatted": "0 / 27,901 (  0.0%)",
+      "healer_did_nothing_idle": 0,
+      "healer_did_nothing_formatted": "0 / 0 (  0.0%)",
+      "proactively_optimized_count": 0,
+      "proactively_optimized_formatted": "0 / 0 (  0.0%)",
+      "average_optimization_loading_reduction_pct": 0.0,
+      "maintained_safe_count": 0,
+      "maintained_safe_formatted": "0 / 0 (  0.0%)",
+      "inadvisable_intervention_count": 0,
+      "inadvisable_intervention_formatted": "0 / 0 (  0.0%)"
+    },
+    "emergency_scenarios_audit": {
+      "total_emergency_scenarios": 27901,
+      "total_emergency_formatted": "27,901 / 27,901 (100.0%)",
+      "physically_infeasible_blackout_count": 1443,
+      "physically_infeasible_formatted": "1,443 / 27,901 (  5.2%)",
+      "infeasible_flagged_critical_count": 1443,
+      "infeasible_flagged_critical_formatted": "1,443 / 1,443 (100.0%)",
+      "solvable_emergencies_evaluated": 26458,
+      "solvable_emergencies_formatted": "26,458 / 27,901 ( 94.8%)",
+      "cured_to_safe_count": 26157,
+      "cured_to_safe_formatted": "26,157 / 26,458 ( 98.9%)",
+      "partial_relief_count": 26428,
+      "partial_relief_formatted": "26,428 / 26,458 ( 99.9%)",
+      "not_cured_count": 30,
+      "not_cured_formatted": "30 / 26,458 (  0.1%)",
+      "average_pre_heal_peak_loading_pct": 6.2,
+      "average_post_heal_peak_loading_pct": 4.5,
+      "average_overload_reduction_pct": 1.7,
+      "average_redispatch_mw": 945.5
+    }
+  }
+]

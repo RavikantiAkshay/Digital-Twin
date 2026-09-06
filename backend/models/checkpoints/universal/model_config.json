@@ -1,0 +1,20 @@
+{
+  "case_id": "universal",
+  "bus_in_dim": 8,
+  "gen_in_dim": 6,
+  "branch_in_dim": 8,
+  "hidden_dim": 64,
+  "edge_dim": 32,
+  "num_layers": 3,
+  "num_heads": 4,
+  "dropout": 0.1,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "batch_size": 64,
+  "lambda_severity": 1.0,
+  "lambda_dispatch": 1.0,
+  "lambda_physics": 0.5,
+  "w_bal": 2.0,
+  "w_lim": 10.0,
+  "w_min": 0.05
+}
